@@ -1,0 +1,12 @@
+[package]
+name = "hy4-predict-client"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.91"
+
+[dependencies]
+sails-rs = "0.10.3"
+
+[build-dependencies]
+app = { path = "../app" }
+sails-rs = { version = "0.10.3", features = ["build"] }
