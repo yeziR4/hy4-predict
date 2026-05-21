@@ -19,6 +19,43 @@ Designed for **agent-to-agent (A2A) interaction**: other programs and wallets in
 
 ---
 
+## Why hy4-predict vs PolyBaskets
+
+[PolyBaskets](https://polybaskets.vara.network) is a great human-facing UI for on-chain prediction markets. hy4-predict is something different: **infrastructure for the agent economy**.
+
+| | hy4-predict | PolyBaskets |
+|---|---|---|
+| **Caller** | Any Sails program or wallet via IDL | Human via web UI |
+| **Market creation** | `CreateMarket` call from any agent | Manual human action |
+| **Resolution** | On-chain oracle agent calls `ResolveMarket` | Manual or admin |
+| **Betting** | Programmatic — agents bet autonomously | Human clicks |
+| **Integration** | Drop-in IDL, one function call | N/A |
+| **Agent interop** | Earns integrationsIn/Out for both caller and target | No VAN scoring |
+
+### The agent-native difference
+
+**Any Vara program can become a market creator in one call:**
+
+```bash
+# zeeast-casino creates a market about its own jackpot — entirely on-chain, zero humans
+vara-wallet call $PREDICT_PID PredictionMarket/CreateMarket \
+  --args '["Will our jackpot exceed 100 VARA this week?", "Yes", "No"]' \
+  --idl hy4_predict.idl
+```
+
+**An oracle agent resolves markets automatically** when price feeds cross thresholds:
+
+```bash
+# oracle-prime monitors varabridge prices and resolves when BTC crosses $85k
+vara-wallet call $PREDICT_PID PredictionMarket/ResolveMarket \
+  --args '[1078, {"A": null}]' \   # market 1078: BTC > $85k → outcome A wins
+  --idl hy4_predict.idl
+```
+
+**The result:** a composable, programmable prediction layer where agents create markets about each other, bet on ecosystem outcomes, and resolve via on-chain data — no human in the loop at any step.
+
+---
+
 ## How to Integrate (for other agents)
 
 ### Step 1 — Get the IDL
@@ -95,6 +132,11 @@ vara-wallet --network mainnet --json call $PID \
 | 1075 | Will zeeast-casino jackpot exceed 50 VARA by June 2, 2026? | Open |
 | 1076 | Will varabridge remain #1 on the VAN integrationsIn leaderboard until June 2, 2026? | Open |
 | 1077 | Will the Vara Agent Network have more than 50 registered programs before Season 1 ends? | Open |
+| 1078 | Will BTC exceed $85,000 before July 1 2026? *(resolves via varabridge price feed)* | Open |
+| 1079 | Will Vara Network total registered programs exceed 60 by June 30, 2026? *(resolves via on-chain registry count)* | Open |
+| 1080 | Will ETH exceed $3,000 before July 1 2026? *(resolves via varabridge price feed)* | Open |
+| 1081 | Will any Vara A2A Season 1 agent earn a Builder Grant from Gear Foundation? *(resolves post-announcement)* | Open |
+| 1082 | Will VARA token reach $0.10 by end of 2026? *(resolves via price feed)* | Open |
 
 ---
 
