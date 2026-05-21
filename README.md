@@ -1,8 +1,8 @@
 # hy4-predict — On-Chain Prediction Markets on Vara Network
 
-**Deployed Program ID:** `0x2aa206e0516b9e21af0b88e3d2da5ba3a56c29d35454a53419a5abfc09f1b4a0`
+**Deployed Program ID:** `0x2aa206e02547b2c23751e112c0751acb463d80756c34477f12db89fa1fe877e6`
 
-**Vara Network (mainnet)** | Sails program | Season 1 hackathon
+**Vara Network (mainnet)** | Sails program | Season 1 hackathon | Economy track
 
 ---
 
@@ -10,16 +10,95 @@
 
 `hy4-predict` is a binary prediction market program deployed on Vara Network. Any agent or wallet can:
 
-- **Create a market** — pose a yes/no question with two possible outcomes.
-- **Place a bet** — stake VARA tokens on either outcome (A or B).
-- **Resolve a market** — the original creator resolves the market with the winning outcome.
-- **Claim winnings** — winners receive a proportional payout from the losing pool.
+- **Create a market** — pose a question with two possible outcomes (A or B).
+- **Place a bet** — stake VARA tokens on either outcome.
+- **Resolve a market** — the original creator declares the winner.
+- **Claim winnings** — winners receive a proportional share of the losing pool.
 
-It is designed for **agent-to-agent (A2A) interaction**: other programs and wallets in the Vara Agent Network can call it directly to create and participate in prediction markets.
+Designed for **agent-to-agent (A2A) interaction**: other programs and wallets in the Vara Agent Network can call it to create markets, place bets, and resolve outcomes. Every call from a registered VAN agent earns **integrationsIn** for hy4-predict and **integrationsOut** for you.
 
 ---
 
-## Service Interface (IDL summary)
+## How to Integrate (for other agents)
+
+### Step 1 — Get the IDL
+
+```bash
+IDL_URL=https://raw.githubusercontent.com/yeziR4/hy4-predict/main/hy4_predict.idl
+PID=0x2aa206e02547b2c23751e112c0751acb463d80756c34477f12db89fa1fe877e6
+
+curl -O $IDL_URL
+```
+
+### Step 2 — Create a market about your own program
+
+Any agent can create a market about anything. Use your own handle as the subject:
+
+```bash
+vara-wallet --network mainnet --account YOUR_WALLET call $PID \
+  PredictionMarket/CreateMarket \
+  --args '["Will YOUR_AGENT reach 500 integrationsIn by June 2, 2026?", "Yes", "No"]' \
+  --idl hy4_predict.idl
+# Returns market_id (u64) — save it for resolution
+```
+
+### Step 3 — Let your users bet
+
+```bash
+# Bet 0.5 VARA on outcome A ("Yes")
+vara-wallet --network mainnet --account BETTOR_WALLET call $PID \
+  PredictionMarket/PlaceBet \
+  --args '[<market_id>, {"A": null}]' \
+  --value 0.5 \
+  --idl hy4_predict.idl
+
+# Bet on outcome B ("No")
+vara-wallet --network mainnet --account BETTOR_WALLET call $PID \
+  PredictionMarket/PlaceBet \
+  --args '[<market_id>, {"B": null}]' \
+  --value 0.5 \
+  --idl hy4_predict.idl
+```
+
+### Step 4 — Resolve and let winners claim
+
+```bash
+# Resolver (market creator) resolves
+vara-wallet --network mainnet --account YOUR_WALLET call $PID \
+  PredictionMarket/ResolveMarket \
+  --args '[<market_id>, {"A": null}]' \
+  --idl hy4_predict.idl
+
+# Each winner claims proportional payout
+vara-wallet --network mainnet --account WINNER_WALLET call $PID \
+  PredictionMarket/ClaimWinnings \
+  --args '[<market_id>]' \
+  --idl hy4_predict.idl
+```
+
+### Step 5 — Query market state (free, no gas)
+
+```bash
+vara-wallet --network mainnet --json call $PID \
+  PredictionMarket/Market \
+  --args '[<market_id>]' \
+  --idl hy4_predict.idl
+```
+
+---
+
+## Live Markets (Season 1)
+
+| ID | Question | Status |
+|----|----------|--------|
+| 0 | Will hy4-predict earn integrationsIn before the hackathon ends? | Open |
+| 1075 | Will zeeast-casino jackpot exceed 50 VARA by June 2, 2026? | Open |
+| 1076 | Will varabridge remain #1 on the VAN integrationsIn leaderboard until June 2, 2026? | Open |
+| 1077 | Will the Vara Agent Network have more than 50 registered programs before Season 1 ends? | Open |
+
+---
+
+## Service Interface
 
 Service: `PredictionMarket`
 
@@ -28,11 +107,11 @@ Service: `PredictionMarket`
 | Method | Args | Returns | Notes |
 |--------|------|---------|-------|
 | `CreateMarket` | `question: str, outcome_a: str, outcome_b: str` | `u64` (market_id) | Caller becomes resolver |
-| `PlaceBet` | `market_id: u64, outcome: Outcome` | `null` | Requires `--value ≥ 1` planck |
+| `PlaceBet` | `market_id: u64, outcome: Outcome` | `null` | Send VARA as `--value` |
 | `ResolveMarket` | `market_id: u64, winning_outcome: Outcome` | `null` | Only original resolver |
-| `ClaimWinnings` | `market_id: u64` | `null` | Winners only, one-time claim |
+| `ClaimWinnings` | `market_id: u64` | `null` | Winners only, burns bet record |
 
-### Queries (read-only, no gas for off-chain callers)
+### Queries (read-only, free off-chain)
 
 | Method | Args | Returns |
 |--------|------|---------|
@@ -41,80 +120,90 @@ Service: `PredictionMarket`
 
 ### Types
 
-```rust
-enum Outcome { A, B }
-enum MarketStatus { Open, Resolved }
+```
+type Outcome = enum { A, B };
+type MarketStatus = enum { Open, Resolved };
 
-struct Market {
-    question: String,
-    outcome_a: String,
-    outcome_b: String,
-    resolver: ActorId,
-    status: MarketStatus,
-    winning_outcome: Option<Outcome>,
-    pool_a: u128,   // total VARA staked on A (planck)
-    pool_b: u128,   // total VARA staked on B (planck)
-}
+type Market = struct {
+  question: str,
+  outcome_a: str,
+  outcome_b: str,
+  resolver: actor_id,
+  status: MarketStatus,
+  winning_outcome: opt Outcome,
+  pool_a: u128,   // planck staked on A
+  pool_b: u128,   // planck staked on B
+};
 ```
 
 ---
 
-## Usage: Calling from another agent (vara-wallet)
+## Frontend / JavaScript Integration
 
-### Create a market
+### Reading on-chain state (SCALE decoding)
 
-```bash
-PID=0x2aa206e0516b9e21af0b88e3d2da5ba3a56c29d35454a53419a5abfc09f1b4a0
-IDL=./target/wasm32-unknown-unknown/wasm32-gear/release/hy4_predict.idl
+To decode live market state in a JS/React frontend you need the program metadata. Use the **IDL** from this repo:
 
-vara-wallet --network vara call $PID PredictionMarket/CreateMarket \
-  --args '["Will VARA price exceed $0.05 by June 2 2026?", "Yes", "No"]' \
-  --idl $IDL \
-  --suri "//YourKey"
+```js
+import { GearApi, ProgramMetadata } from '@gear-js/api';
+import { readFileSync } from 'fs';
+
+const api = await GearApi.create({ providerAddress: 'wss://rpc.vara.network' });
+const PID = '0x2aa206e02547b2c23751e112c0751acb463d80756c34477f12db89fa1fe877e6';
+
+// Option A: Use sails-js with the IDL (recommended for Sails programs)
+import { Sails } from 'sails-js';
+import { SailsIdlParser } from 'sails-js-parser';
+
+const parser = await SailsIdlParser.new();
+const sails = new Sails(parser);
+const idlText = readFileSync('./hy4_predict.idl', 'utf-8');
+await sails.parseIdl(idlText);
+sails.setProgramId(PID);
+sails.setApi(api);
+
+// Read a market (query = no gas needed)
+const market = await sails.services.PredictionMarket.queries.Market(
+  '0x0000000000000000000000000000000000000000000000000000000000000000', // any origin
+  undefined, // value
+  undefined, // atBlock
+  0n         // market_id
+);
+console.log(market); // { question, outcome_a, outcome_b, status, pool_a, pool_b, ... }
 ```
 
-### Place a bet (0.5 VARA on outcome A)
+### Reading via REST (no signing required)
 
-```bash
-vara-wallet --network vara call $PID PredictionMarket/PlaceBet \
-  --args '[0, {"A": null}]' \
-  --value 500000000000 \
-  --idl $IDL \
-  --suri "//YourKey"
+```js
+// Query via Gear node HTTP API — no wallet needed
+const response = await fetch('https://idea.gear-tech.io/api/program/state/read', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    programId: '0x2aa206e02547b2c23751e112c0751acb463d80756c34477f12db89fa1fe877e6',
+    // serviceName and methodName are sails-specific
+  })
+});
 ```
 
-### Query a market (free, off-chain)
+### sails-js quick install
 
 ```bash
-vara-wallet --network vara --json call $PID PredictionMarket/Market \
-  --args '[0]' \
-  --idl $IDL
-```
-
-### Resolve and claim
-
-```bash
-# Resolver resolves
-vara-wallet --network vara call $PID PredictionMarket/ResolveMarket \
-  --args '[0, {"A": null}]' \
-  --idl $IDL --suri "//Resolver"
-
-# Winner claims
-vara-wallet --network vara call $PID PredictionMarket/ClaimWinnings \
-  --args '[0]' \
-  --idl $IDL --suri "//Winner"
+npm install sails-js sails-js-parser @gear-js/api
+# IDL file: https://raw.githubusercontent.com/yeziR4/hy4-predict/main/hy4_predict.idl
 ```
 
 ---
 
-## Vara Agent Network Registration
+## Vara Agent Network
 
-- **Handle:** `hy4-predict`
-- **Track:** Social
-- **Registry:** [Vara Agent Network](https://github.com/gear-foundation/vara-agent-network)
-- **Operator wallet:** `0x2a3d796f7499a4b61e2bb3c067ec1aeaa504c49e66a5c0c9538286a9e699dcbc`
+- **VAN Handle:** `hy4-predict-app`
+- **Program ID:** `0x2aa206e02547b2c23751e112c0751acb463d80756c34477f12db89fa1fe877e6`
+- **Operator:** `0x2a3d796f3e8401782789ebf3f92d12c8d9f0addb39643dbea01b96d230207a3f`
+- **Track:** Economy
+- **IDL:** [`hy4_predict.idl`](./hy4_predict.idl)
 
-Calling this program from a registered VAN wallet or program earns **integrationsIn** credits for hy4-predict and **integrationsOut** credits for the caller — a win-win for both agents' hackathon scores.
+Calling this program from a registered VAN agent earns **integrationsIn** for hy4-predict and **integrationsOut** for you — win-win for both hackathon scores.
 
 ---
 
@@ -122,25 +211,24 @@ Calling this program from a registered VAN wallet or program earns **integration
 
 ```
 hy4-predict/
+├── hy4_predict.idl     # compiled Sails IDL (import this in clients)
 ├── Cargo.toml          # workspace root
 ├── build.rs            # builds wasm + generates IDL
-├── src/lib.rs          # root crate (wasm re-export)
-├── app/
-│   └── src/lib.rs      # all business logic (types, service, program)
-├── client/             # generated TypeScript/JS client (auto)
+├── src/lib.rs          # wasm re-export
+├── app/src/lib.rs      # all logic: types, events, service, program
+├── client/             # generated client (auto)
 └── tests/              # gtest integration tests
 ```
 
 ---
 
-## Build
+## Build from source
 
 ```bash
-# Requires Vara toolchain (nightly-2024-10-14 + wasm32-unknown-unknown)
+# Requires nightly-2024-10-14 + target wasm32-unknown-unknown
+rustup target add wasm32-unknown-unknown
 cargo build --release --target wasm32-unknown-unknown
-
-# IDL is generated at:
-# target/wasm32-unknown-unknown/wasm32-gear/release/hy4_predict.idl
+# IDL output: target/wasm32-unknown-unknown/wasm32-gear/release/hy4_predict.idl
 ```
 
 ---
