@@ -1,0 +1,68 @@
+type Outcome = enum {
+  A,
+  B,
+};
+
+type Market = struct {
+  question: str,
+  outcome_a: str,
+  outcome_b: str,
+  resolver: actor_id,
+  status: MarketStatus,
+  winning_outcome: opt Outcome,
+  pool_a: u128,
+  pool_b: u128,
+};
+
+type MarketStatus = enum {
+  Open,
+  Resolved,
+};
+
+constructor {
+  New : ();
+};
+
+service PredictionMarket {
+  /// Claim proportional winnings from the losing pool.
+  /// Payout = stake * total_pool / winning_pool. Burns the bet record.
+  ClaimWinnings : (market_id: u64) -> null;
+  /// Create a new binary market. The caller becomes the resolver.
+  /// Returns the new market's id.
+  CreateMarket : (question: str, outcome_a: str, outcome_b: str) -> u64;
+  /// Place a bet on an outcome. Stake = msg::value() in planck.
+  /// A bettor may accumulate stake on the same outcome; switching outcome panics.
+  PlaceBet : (market_id: u64, outcome: Outcome) -> null;
+  /// Resolve a market. Only callable by the resolver set at creation.
+  ResolveMarket : (market_id: u64, winning_outcome: Outcome) -> null;
+  /// Read a bettor's position on a market.
+  query Bet : (market_id: u64, bettor: actor_id) -> opt struct { Outcome, u128 };
+  /// Read market state (query, no gas for off-chain calls).
+  query Market : (market_id: u64) -> opt Market;
+
+  events {
+    MarketCreated: struct {
+      market_id: u64,
+      question: str,
+      outcome_a: str,
+      outcome_b: str,
+      resolver: actor_id,
+    };
+    BetPlaced: struct {
+      market_id: u64,
+      bettor: actor_id,
+      outcome: Outcome,
+      amount: u128,
+    };
+    MarketResolved: struct {
+      market_id: u64,
+      winning_outcome: Outcome,
+    };
+    WinningsClaimed: struct {
+      market_id: u64,
+      bettor: actor_id,
+      amount: u128,
+    };
+  }
+};
+
