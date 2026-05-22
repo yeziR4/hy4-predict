@@ -19,25 +19,40 @@ type MarketStatus = enum {
   Resolved,
 };
 
+type FastMarket = struct {
+  id: u64,
+  /// Human-readable question, e.g. "Will BTC be higher in 50 blocks?"
+  question: str,
+  /// Price symbol as used by varabridge, e.g. "BTC", "ETH", "SOL"
+  symbol: str,
+  /// Opening price in micro-USD (price_usd_micro from VaraBridge/GetPrice)
+  open_price_micro_usd: u128,
+  /// Closing price set at resolution
+  close_price_micro_usd: opt u128,
+  /// Block at or after which anyone can call ResolveFastMarket
+  resolve_after_block: u32,
+  status: MarketStatus,
+  /// A = Higher (close > open), B = Lower or Same (close <= open)
+  winning_outcome: opt Outcome,
+  pool_a: u128,
+  pool_b: u128,
+};
+
 constructor {
   New : ();
 };
 
 service PredictionMarket {
   /// Claim proportional winnings from the losing pool.
-  /// Payout = stake * total_pool / winning_pool. Burns the bet record.
   ClaimWinnings : (market_id: u64) -> null;
   /// Create a new binary market. The caller becomes the resolver.
   /// Returns the new market's id.
   CreateMarket : (question: str, outcome_a: str, outcome_b: str) -> u64;
   /// Place a bet on an outcome. Stake = msg::value() in planck.
-  /// A bettor may accumulate stake on the same outcome; switching outcome panics.
   PlaceBet : (market_id: u64, outcome: Outcome) -> null;
   /// Resolve a market. Only callable by the resolver set at creation.
   ResolveMarket : (market_id: u64, winning_outcome: Outcome) -> null;
-  /// Read a bettor's position on a market.
   query Bet : (market_id: u64, bettor: actor_id) -> opt struct { Outcome, u128 };
-  /// Read market state (query, no gas for off-chain calls).
   query Market : (market_id: u64) -> opt Market;
 
   events {
@@ -59,6 +74,66 @@ service PredictionMarket {
       winning_outcome: Outcome,
     };
     WinningsClaimed: struct {
+      market_id: u64,
+      bettor: actor_id,
+      amount: u128,
+    };
+  }
+};
+
+service FastMarket {
+  /// Claim proportional winnings from the losing pool.
+  ClaimFastWinnings : (market_id: u64) -> null;
+  /// Create a fast market with automatic price-based resolution.
+  /// 
+  /// `open_price_micro_usd` — fetch from `VaraBridge/GetPrice(symbol).price_usd_micro`
+  ///   before calling this method.
+  /// `duration_blocks` — blocks until anyone may resolve (50 ≈ 5 minutes on Vara).
+  /// 
+  /// Returns the new market_id.
+  CreateFastMarket : (question: str, symbol: str, open_price_micro_usd: u128, duration_blocks: u32) -> u64;
+  /// Place a bet. Outcome::A = "Higher", Outcome::B = "Lower or Same".
+  /// Betting closes once exec::block_height() >= resolve_after_block.
+  PlaceFastBet : (market_id: u64, outcome: Outcome) -> null;
+  /// Resolve a fast market. Callable by ANYONE after resolve_after_block.
+  /// 
+  /// `close_price_micro_usd` — fetch from `VaraBridge/GetPrice(symbol).price_usd_micro`
+  ///   immediately before calling this method.
+  /// 
+  /// Resolution is automatic:
+  ///   close > open  → Outcome::A ("Higher") wins
+  ///   close <= open → Outcome::B ("Lower or Same") wins
+  ResolveFastMarket : (market_id: u64, close_price_micro_usd: u128) -> null;
+  /// Returns the current on-chain block height. Useful for callers to check
+  /// how many blocks remain before a market can be resolved.
+  query CurrentBlock : () -> u32;
+  /// Query a bettor's position on a fast market.
+  query FastBet : (market_id: u64, bettor: actor_id) -> opt struct { Outcome, u128 };
+  /// Query a fast market by id.
+  query FastMarket : (market_id: u64) -> opt FastMarket;
+
+  events {
+    FastMarketCreated: struct {
+      market_id: u64,
+      question: str,
+      symbol: str,
+      open_price_micro_usd: u128,
+      resolve_after_block: u32,
+    };
+    FastBetPlaced: struct {
+      market_id: u64,
+      bettor: actor_id,
+      outcome: Outcome,
+      amount: u128,
+    };
+    FastMarketResolved: struct {
+      market_id: u64,
+      symbol: str,
+      open_price_micro_usd: u128,
+      close_price_micro_usd: u128,
+      winning_outcome: Outcome,
+    };
+    FastWinningsClaimed: struct {
       market_id: u64,
       bettor: actor_id,
       amount: u128,
