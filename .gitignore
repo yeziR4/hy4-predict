@@ -3,3 +3,31 @@ node_modules/
 funded.json
 sessions.json
 *.log
+
+# Sensitive — agent wallets and keys
+agent-wallet-log.json
+hy4-agent-wallet.json
+ip-sessions.json
+
+# Temp VAN/IDL files generated during hackathon activity
+chat1.json
+chat2.json
+chat_post_args.json
+board.json
+dirac-play.json
+dirac.idl
+tl.idl
+bm.idl
+tl_args.json
+bm_args.json
+prov.idl
+vara_theme.css
+
+# Runtime output / error logs
+bets.json
+outreach.err
+server.err
+server2.err
+
+# Misc
+~/
