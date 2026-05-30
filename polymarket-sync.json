@@ -1,0 +1,306 @@
+{
+  "1467": {
+    "polymarketId": "0xf15f4253eace2d74c88936cd63906abda4ff4bbf98e20cf799ba45cf6afc55e9",
+    "question": "Will Israel launch a major ground offensive in Gaza by June 30?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-28T21:47:51.541Z",
+    "resolved": false
+  },
+  "1468": {
+    "polymarketId": "0x1c39f29a392495da86a9d1882bdb7ad82bd617990a6da16674e1ee3da105e9e6",
+    "question": "Will Israel launch a major ground offensive in Gaza by December 31?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-28T21:47:57.818Z",
+    "resolved": false
+  },
+  "1469": {
+    "polymarketId": "0x4e7c5644283edc6a2c1347e0848b16e8a545f976887f680d3040a50267cf6e21",
+    "question": "Will Mamadu Iaia Djaló win the 2025 Guinea-Bissau presidential election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-28T21:48:03.511Z",
+    "resolved": false
+  },
+  "1470": {
+    "polymarketId": "0x0cf02993582edfe1d4407b4f89dd3e657279013cbd2ba9bf41edf437149716a9",
+    "question": "Will PS win the most seats in the 2025 Guinea-Bissau National People’s Assembly election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-28T21:48:09.416Z",
+    "resolved": false
+  },
+  "1471": {
+    "polymarketId": "0xb025dfc48fb23c050eb39741384e9fe9862bcfb7f69fddd600925a86b4e6996a",
+    "question": "Will José Mário Vaz win the 2025 Guinea-Bissau presidential election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-28T21:48:15.514Z",
+    "resolved": false
+  },
+  "1472": {
+    "polymarketId": "0x572918e47283134e30a510ce6ccc5a8dcc13370b683ed6da34d77f699ec79404",
+    "question": "Will PT win the most seats in the 2025 Guinea-Bissau National People’s Assembly election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-28T21:48:21.502Z",
+    "resolved": false
+  },
+  "1473": {
+    "polymarketId": "0xa789b4962dca8c40e78f4143b0af90b858ef8696f9bb579dd3ad2ea1a0b94a12",
+    "question": "Will Gabriel Fernando Indi win the 2025 Guinea-Bissau presidential election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-28T21:48:27.465Z",
+    "resolved": false
+  },
+  "1474": {
+    "polymarketId": "0xcd1a1f6de63dbdd99f1d0d92cc7f810e133dd41e32806e5aa57b88e398a4d40e",
+    "question": "Will Honório Augusto Lopes win the 2025 Guinea-Bissau presidential election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-28T21:48:33.893Z",
+    "resolved": false
+  },
+  "1475": {
+    "polymarketId": "0x35153bb1091a7c45ab04b3639591deeed5e1792ba410a4bc2c65059c2dbaf64e",
+    "question": "Will João Bernardo Vieira win the 2025 Guinea-Bissau presidential election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-28T21:48:39.496Z",
+    "resolved": false
+  },
+  "1476": {
+    "polymarketId": "0x5a2420d94c742e11adf2e8e3a0fd3158f8b2a39e886527aacb75468711a4c92b",
+    "question": "Will Mário da Silva Júnior win the 2025 Guinea-Bissau presidential election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-28T21:48:45.552Z",
+    "resolved": false
+  },
+  "1477": {
+    "polymarketId": "0xe5319376e9e934b1fcfbfd43194a897017ee834cb1a9ea92a90a5f9fdf295795",
+    "question": "Will MUNDO-GB  win the most seats in the 2025 Guinea-Bissau National People’s Assembly election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-29T11:56:09.258Z",
+    "resolved": false
+  },
+  "1478": {
+    "polymarketId": "0x64ed5a606c1deed4",
+    "question": "Will Bitcoin be Up or Down at May 29, 7PM ET?",
+    "outcomeALabel": "Up",
+    "outcomeBLabel": "Down",
+    "createdAt": "2026-05-29T20:25:27.999Z",
+    "resolved": false
+  },
+  "1479": {
+    "polymarketId": "0xb0c968f4eb2cdc2d",
+    "question": "Will Ethereum be Up or Down at May 29, 7PM ET?",
+    "outcomeALabel": "Up",
+    "outcomeBLabel": "Down",
+    "createdAt": "2026-05-29T20:25:48.591Z",
+    "resolved": false
+  },
+  "1480": {
+    "polymarketId": "0xcccb7e7613a087c132b69cbf3a02bece3fdcb824c1da54ae79acc8d4a562d902",
+    "question": "Will GTA VI be released before June 2026?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-29T20:25:57.618Z",
+    "resolved": false
+  },
+  "1481": {
+    "polymarketId": "0xafdefc6992e8a475",
+    "question": "Will any AI model other than Claude/GPT have the best score on May 30?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-29T20:26:24.465Z",
+    "resolved": false
+  },
+  "1482": {
+    "polymarketId": "0x3a3eb2d501968519",
+    "question": "Will Sandra Gauci be the next Prime Minister of Malta after the 2026 Maltese general election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-29T20:26:39.544Z",
+    "resolved": false
+  },
+  "1483": {
+    "polymarketId": "0x161a2b6a96bb7fd306f056914ae6331896efb7e3b431802c797d80447d8ed877",
+    "question": "Will Fernando Dias da Costa win the 2025 Guinea-Bissau presidential election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:11:26.816Z",
+    "resolved": false
+  },
+  "1484": {
+    "polymarketId": "0xe411d4af02d81f6c67b7c76f7dd243d2a03460faac80d9272bf9a055a37fbfa4",
+    "question": "Will Siga Batista win the 2025 Guinea-Bissau presidential election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:11:33.138Z",
+    "resolved": false
+  },
+  "1485": {
+    "polymarketId": "0x799a8603c38cfd7f898d7c028e217bb7f7d0f1e599ec79248e86d3e0ace0e90e",
+    "question": "Will Herculano Armando Bequinsa win the 2025 Guinea-Bissau presidential election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:11:38.841Z",
+    "resolved": false
+  },
+  "1486": {
+    "polymarketId": "0xc323f0a17885ce0411cf5d85a5e19050dee89c8adefa07a9a3b5fe51475e26a2",
+    "question": "Will FLING win the most seats in the 2025 Guinea-Bissau National People’s Assembly election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:11:44.760Z",
+    "resolved": false
+  },
+  "1487": {
+    "polymarketId": "0x85ca90afc0ab07aaf1d0689722e3119a17cde4c1dc9bcb56c18438fd0612bf5f",
+    "question": "Will FREPASNA win the most seats in the 2025 Guinea-Bissau National People’s Assembly election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:11:50.860Z",
+    "resolved": false
+  },
+  "1488": {
+    "polymarketId": "0x03957fd52ec3c1bc1985a566fa8fb7d1e5ee717d3ca5f83f0905aa24fbc33d96",
+    "question": "Will Umaro Sissoco Embaló win the 2025 Guinea-Bissau presidential election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:11:56.898Z",
+    "resolved": false
+  },
+  "1489": {
+    "polymarketId": "0x32a8cbfeb09dfcc83080139fde8b026d67809721175d02655d1b017ee5511fe1",
+    "question": "Will João de Deus Mendes win the 2025 Guinea-Bissau presidential election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:12:03.189Z",
+    "resolved": false
+  },
+  "1490": {
+    "polymarketId": "0xdb5db1840ada9de33b44dc5cf8c253ac51e24442939fa5484fcfd5be0f1851e7",
+    "question": "Will Baciro Djá win the 2025 Guinea-Bissau presidential election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:12:09.070Z",
+    "resolved": false
+  },
+  "1491": {
+    "polymarketId": "0x8056eea46bf4925b2a0a0366016107db0074061270f1db199b85d7abfa89f627",
+    "question": "Will Platforma Reupblicana “Nô Kumpu Guiné” win the most seats in the 2025 Guinea-Bissau National People’s Assembly election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:12:15.218Z",
+    "resolved": false
+  },
+  "1492": {
+    "polymarketId": "0x44fc47fd9119de483a9feb4262c0a1e269ef83c8dff1ef0b00aa1e8051684d72",
+    "question": "Will Hannover 96 win on 2025-11-28?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:12:21.117Z",
+    "resolved": false
+  },
+  "1493": {
+    "polymarketId": "0x1c1163c1ef0b02d0a7b6bc40a5651a313d7a22c033d7152075fc2274bbcebe60",
+    "question": "Will SV 07 Elversberg win on 2025-11-30?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:12:26.820Z",
+    "resolved": false
+  },
+  "1494": {
+    "polymarketId": "0xc9924bad601335b3a5e69d490400e66056bc19050ee7363a23d48bbcf5815166",
+    "question": "Will DSC Arminia Bielefeld win on 2025-11-30?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:12:33.028Z",
+    "resolved": false
+  },
+  "1495": {
+    "polymarketId": "0xc0188f18f70fce99de433ca535ed81f1d96584e84ba89a22df915256af1497fb",
+    "question": "Will Real Racing Club win on 2025-11-30?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:12:38.841Z",
+    "resolved": false
+  },
+  "1496": {
+    "polymarketId": "0x4b973ddbb69b34a16154970ac7d3acaffe6e687c366a76c39628364f9e5db903",
+    "question": "Will CD Mirandés win on 2025-11-30?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:12:45.611Z",
+    "resolved": false
+  },
+  "1497": {
+    "polymarketId": "0x227594319d7d79f96f276031c6eeb6dd4a7ec2ec204eb1f7ed8a59ebf75a6e47",
+    "question": "Will Córdoba CF win on 2025-11-30?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:12:51.074Z",
+    "resolved": false
+  },
+  "1498": {
+    "polymarketId": "0xa1c130b19f2d1a690bf2c6a164186bbebf07a2aeac7c2cea4f195b907dc820ac",
+    "question": "Will CD Castellón win on 2025-11-30?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:12:56.858Z",
+    "resolved": false
+  },
+  "1499": {
+    "polymarketId": "0x2586c9ae289141b3688d0fe27cdca4ec39e6b18db416c112d38292911a70ee21",
+    "question": "Ethereum Up or Down - December 19, 11:30AM-11:35AM ET",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:13:02.828Z",
+    "resolved": false
+  },
+  "1500": {
+    "polymarketId": "0x604658b4a390c9f0d9e556e42e75b0341388c55298ab049f308a38373a0648f4",
+    "question": "XRP Up or Down - December 19, 11:30AM-11:35AM ET",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:13:08.870Z",
+    "resolved": false
+  },
+  "1501": {
+    "polymarketId": "0xced26a88a8dad2bae9b3e925c3e5d47351f1b719f1d993b3a1de7edef766042c",
+    "question": "Solana Up or Down - December 19, 11:35AM-11:40AM ET",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:13:15.128Z",
+    "resolved": false
+  },
+  "1502": {
+    "polymarketId": "0xc587bda904f031a973ad3cb57128ca011bfab0f45e6cb3734ed2227c4d4be419",
+    "question": "Will Oh Se-hoon win the 2026 Seoul Mayoral Election?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:13:20.904Z",
+    "resolved": false
+  },
+  "1503": {
+    "polymarketId": "0x5569d3884dea8ccc096111b9e89ca427ebb38ab4fe231b77f5ca6151d1fcde26",
+    "question": "Will the highest temperature in Hong Kong be 23C or below on May 30?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:13:30.399Z",
+    "resolved": false
+  },
+  "1504": {
+    "polymarketId": "0x4cb03e3f00f60224408a3f40b9e9eb8815ba47acef15b350b2cf2bb3de10cb97",
+    "question": "Will Gabriel Martinelli be named 2026 UCL Final Man of the Match?",
+    "outcomeALabel": "Yes",
+    "outcomeBLabel": "No",
+    "createdAt": "2026-05-30T07:13:35.853Z",
+    "resolved": false
+  }
+}

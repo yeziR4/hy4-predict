@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Bets — Vara Predict</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">Vara<span> Predict</span></a>
+  <div class="nav-links">
+    <a href="/markets.html">Markets</a>
+    <a href="/my-bets.html" class="active">My Bets</a>
+    <a href="/leaderboard.html">Leaderboard</a>
+    <a href="/" class="btn btn-primary btn-sm">Get Wallet</a>
+  </div>
+</nav>
+
+<div class="container" style="padding-top:2.5rem;padding-bottom:4rem">
+  <h1 style="font-size:1.75rem;font-weight:700;margin-bottom:.5rem">My Bets</h1>
+  <p style="color:var(--muted);font-size:.9rem;margin-bottom:2rem">Enter your wallet address to see your positions and claim winnings.</p>
+
+  <div class="card" style="max-width:560px;margin-bottom:2rem">
+    <div style="display:flex;gap:.75rem;align-items:flex-end">
+      <div style="flex:1">
+        <label style="display:block;font-size:.85rem;font-weight:500;color:var(--muted);margin-bottom:.4rem">Wallet Address</label>
+        <input type="text" id="lookup-address" placeholder="kGg… or 0x…" style="width:100%">
+      </div>
+      <button class="btn btn-primary" onclick="lookupBets()">Look Up</button>
+    </div>
+  </div>
+
+  <div id="bets-container" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+      <h2 style="font-size:1.1rem;font-weight:600">
+        Bets for <code id="bets-address" style="font-size:.85rem;color:var(--primary)"></code>
+      </h2>
+      <span id="bets-count" style="color:var(--muted);font-size:.875rem"></span>
+    </div>
+
+    <!-- Claimable winnings banner -->
+    <div id="claimable-banner" style="display:none" class="alert alert-success" style="margin-bottom:1.5rem">
+      <span>�?�</span>
+      <div>You have claimable winnings! Click <strong>Claim</strong> on any winning bet below.</div>
+    </div>
+
+    <div id="bets-result">
+      <div class="loading-state"><div class="spinner"></div> Loading bets…</div>
+    </div>
+  </div>
+
+  <!-- No bets -->
+  <div id="no-bets" style="display:none" class="empty-state">
+    <div style="font-size:2.5rem;margin-bottom:1rem">�?</div>
+    <h3>No bets found</h3>
+    <p>This address hasn't placed any bets on known markets yet.</p>
+    <a href="/markets.html" class="btn btn-primary" style="margin-top:1.5rem">Browse Markets</a>
+  </div>
+</div>
+
+<!-- Claim modal -->
+<div class="modal-overlay" id="claim-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Claim Winnings</span>
+      <button class="modal-close" onclick="closeClaimModal()">✕</button>
+    </div>
+
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1.25rem">
+      <div style="font-size:.75rem;color:var(--muted);margin-bottom:.35rem">Market #<span id="claim-market-id"></span></div>
+      <div style="font-weight:600;font-size:.95rem" id="claim-question">—</div>
+    </div>
+
+    <div class="alert alert-success" style="margin-bottom:1.25rem">
+      <span>�?�</span>
+      <div>Your bet on <strong id="claim-outcome-label"></strong> won! Claim your share of the pool.</div>
+    </div>
+
+    <div class="form-group">
+      <label>Your Mnemonic (to sign the claim)</label>
+      <input type="password" id="claim-mnemonic" placeholder="word1 word2 word3 …">
+    </div>
+
+    <div id="claim-result" style="display:none;margin-bottom:1rem"></div>
+
+    <button class="btn btn-success" style="width:100%" id="claim-submit-btn" onclick="submitClaim()">
+      Claim Winnings
+    </button>
+  </div>
+</div>
+
+<footer>
+  <p>Vara Predict � On-Chain Prediction Markets · <a href="https://vara.network" target="_blank">Vara Network</a></p>
+</footer>
+
+<script>
+  let currentClaim = null;
+
+  // Pre-fill from localStorage
+  const saved = localStorage.getItem('hy4_wallet');
+  if (saved) {
+    try {
+      const w = JSON.parse(saved);
+      if (w.address) document.getElementById('lookup-address').value = w.address;
+    } catch {}
+  }
+
+  async function lookupBets() {
+    const address = document.getElementById('lookup-address').value.trim();
+    if (!address) return alert('Please enter a wallet address.');
+
+    document.getElementById('bets-container').style.display = 'none';
+    document.getElementById('no-bets').style.display = 'none';
+    document.getElementById('bets-result').innerHTML = '<div class="loading-state"><div class="spinner"></div> Scanning recent markets for your bets… (~10s)</div>';
+    document.getElementById('bets-container').style.display = '';
+
+    try {
+      const r = await fetch('/api/bets/' + encodeURIComponent(address));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const bets = await r.json();
+
+      document.getElementById('bets-address').textContent = address.slice(0,12) + '…' + address.slice(-6);
+      document.getElementById('bets-count').textContent = bets.length + ' bet' + (bets.length !== 1 ? 's' : '');
+
+      if (!bets.length) {
+        document.getElementById('bets-container').style.display = 'none';
+        document.getElementById('no-bets').style.display = '';
+        return;
+      }
+
+      const claimable = bets.filter(b => isWinner(b));
+      document.getElementById('claimable-banner').style.display = claimable.length ? '' : 'none';
+
+      renderBets(bets);
+    } catch (e) {
+      document.getElementById('bets-result').innerHTML =
+        `<div class="alert alert-error"><span>✕</span><div>${e.message}</div></div>`;
+    }
+  }
+
+  function isWinner(bet) {
+    if ((bet.status?.kind ?? bet.status) !== 'Resolved') return false;
+    const win = bet.winning_outcome?.kind ?? bet.winning_outcome;
+    const myOutcome = bet.outcome?.kind ?? bet.outcome;
+    return win && myOutcome && win === myOutcome;
+  }
+
+  function renderBets(bets) {
+    const el = document.getElementById('bets-result');
+    el.innerHTML = `
+      <div style="overflow-x:auto">
+        <table class="bets-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Question</th>
+              <th>Outcome</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Result</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${bets.map(b => betRow(b)).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  function cleanQ(q) {
+    if (!q) return q;
+    let out = q, prev;
+    do {
+      prev = out;
+      out = out
+        .replace(/^\[v\d+-era\]\s*/i, '')
+        .replace(/^\[Hackathon day \d+\]\s*/i, '')
+        .replace(/^\[Day \d+\]\s*/i, '')
+        .replace(/\(iter\s*\d+\)\s*/gi, '');
+    } while (out !== prev);
+    return out.trim();
+  }
+
+  function betRow(b) {
+    const status = b.status?.kind ?? b.status;
+    const myOutcome = b.outcome?.kind ?? b.outcome;
+    const win = b.winning_outcome?.kind ?? b.winning_outcome;
+    const winner = isWinner(b);
+    const loser = status === 'Resolved' && !winner;
+
+    return `
+      <tr>
+        <td style="color:var(--muted)">#${b.marketId}</td>
+        <td style="max-width:220px">${cleanQ(b.question)}</td>
+        <td><span class="outcome-pill ${myOutcome === 'A' ? 'pill-a' : 'pill-b'}">${myOutcome}</span></td>
+        <td>${b.amount?.toFixed(2)} VARA</td>
+        <td>${status === 'Open'
+          ? '<span style="color:var(--success);font-size:.8rem">�? Open</span>'
+          : '<span style="color:var(--muted);font-size:.8rem">✓ Resolved</span>'}</td>
+        <td>${winner
+          ? '<span class="win-pill">�?� Won</span>'
+          : loser
+            ? '<span class="lose-pill">✗ Lost</span>'
+            : '—'}</td>
+        <td>${winner
+          ? `<button class="btn btn-success btn-sm" onclick='openClaim(${JSON.stringify(b).replace(/'/g,"&#39;")})'>Claim</button>`
+          : ''}</td>
+      </tr>`;
+  }
+
+  // ── Claim modal ────────────────────────────────────────────────────────────
+  function openClaim(bet) {
+    currentClaim = bet;
+    document.getElementById('claim-market-id').textContent = bet.marketId;
+    document.getElementById('claim-question').textContent = bet.question;
+    const myOutcome = bet.outcome?.kind ?? bet.outcome;
+    document.getElementById('claim-outcome-label').textContent = myOutcome === 'A' ? 'Outcome A' : 'Outcome B';
+
+    // Pre-fill mnemonic
+    const saved = localStorage.getItem('hy4_wallet');
+    if (saved) {
+      try { document.getElementById('claim-mnemonic').value = JSON.parse(saved).mnemonic || ''; } catch {}
+    }
+
+    document.getElementById('claim-result').style.display = 'none';
+    document.getElementById('claim-submit-btn').disabled = false;
+    document.getElementById('claim-submit-btn').textContent = 'Claim Winnings';
+    document.getElementById('claim-modal').classList.add('open');
+  }
+
+  function closeClaimModal() { document.getElementById('claim-modal').classList.remove('open'); }
+  document.getElementById('claim-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeClaimModal(); });
+
+  async function submitClaim() {
+    const mnemonic = document.getElementById('claim-mnemonic').value.trim();
+    if (!mnemonic) return alert('Please enter your mnemonic.');
+    const btn = document.getElementById('claim-submit-btn');
+    btn.disabled = true; btn.textContent = 'Claiming…';
+
+    try {
+      const r = await fetch('/api/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mnemonic, marketId: currentClaim.marketId, type: currentClaim.type })
+      });
+      const d = await r.json();
+      const el = document.getElementById('claim-result');
+      if (d.error) {
+        el.innerHTML = `<div class="alert alert-error"><span>✕</span><div>${d.error}</div></div>`;
+      } else {
+        el.innerHTML = `<div class="alert alert-success"><span>✓</span><div>Claimed! Block: <code>${d.txHash?.slice(0,18)}…</code></div></div>`;
+      }
+      el.style.display = '';
+      btn.textContent = 'Done';
+    } catch (e) {
+      document.getElementById('claim-result').innerHTML = `<div class="alert alert-error"><span>✕</span><div>${e.message}</div></div>`;
+      document.getElementById('claim-result').style.display = '';
+      btn.disabled = false; btn.textContent = 'Try Again';
+    }
+  }
+</script>
+</body>
+</html>
+

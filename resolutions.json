@@ -1,0 +1,92 @@
+[
+  {
+    "marketId": "1",
+    "symbol": "ETH",
+    "openPriceMicroUsd": "2138920000",
+    "closePriceMicroUsd": 2009010000,
+    "resolvedAt": "2026-05-29T11:05:54.331Z",
+    "txHash": "0x9054f7befaeab1188d9fc3d0ba75a3709de37e52032ec49701ac4ef08fd7caad",
+    "error": null
+  },
+  {
+    "marketId": "2",
+    "symbol": "ETH",
+    "openPriceMicroUsd": "2138920000",
+    "closePriceMicroUsd": 2009010000,
+    "resolvedAt": "2026-05-29T11:06:02.783Z",
+    "txHash": "0xe8da03d43c1407d944916a3381eb8cfcb26a702ba2423b09dc5bfbab59251e00",
+    "error": null
+  },
+  {
+    "marketId": "3",
+    "symbol": "BTC",
+    "openPriceMicroUsd": "77200000000",
+    "closePriceMicroUsd": 73528000000,
+    "resolvedAt": "2026-05-29T11:06:08.843Z",
+    "txHash": "0x6a1eb45bdd8fae53b259c412acb6d1de78b308117aa382d35bc83b7a2e5669e6",
+    "error": null
+  },
+  {
+    "marketId": "4",
+    "symbol": "ETH",
+    "openPriceMicroUsd": "2138920000",
+    "closePriceMicroUsd": 2009010000,
+    "resolvedAt": "2026-05-29T11:06:14.892Z",
+    "txHash": "0xcbe17e89b452f657417d38f4452446797db8d113d72b1a477bdbfdc7c03fd9f2",
+    "error": null
+  },
+  {
+    "marketId": "5",
+    "symbol": "ETH",
+    "openPriceMicroUsd": "2138920000",
+    "closePriceMicroUsd": 2009110000,
+    "resolvedAt": "2026-05-29T11:06:20.777Z",
+    "txHash": "0x7f4db1714642f87941b2136e6859d720744f70090434d872a5e87db2b154096a",
+    "error": null
+  },
+  {
+    "marketId": "6",
+    "symbol": "ETH",
+    "openPriceMicroUsd": "2138920000",
+    "closePriceMicroUsd": 2009570000,
+    "resolvedAt": "2026-05-29T11:15:27.058Z",
+    "txHash": "0x96985823e8706bd33e9ac2f8776065344026500355cdbaa282732711895a090e",
+    "error": null
+  },
+  {
+    "marketId": "7",
+    "symbol": "SOL",
+    "openPriceMicroUsd": "87210000",
+    "closePriceMicroUsd": 81960000,
+    "resolvedAt": "2026-05-29T11:15:33.218Z",
+    "txHash": "0x629b6228f8c04c7a5936894c2d8de10384457635115a28eb99f79741bbd4552d",
+    "error": null
+  },
+  {
+    "marketId": "8",
+    "symbol": "ETH",
+    "openPriceMicroUsd": "2138920000",
+    "closePriceMicroUsd": 2009570000,
+    "resolvedAt": "2026-05-29T11:15:38.706Z",
+    "txHash": "0x350318bee2acd34ea3062550c93801ff141353d42eed39b6b33dbd9287654740",
+    "error": null
+  },
+  {
+    "marketId": "9",
+    "symbol": "BTC",
+    "openPriceMicroUsd": "77737350000",
+    "closePriceMicroUsd": 73558000000,
+    "resolvedAt": "2026-05-29T11:15:45.227Z",
+    "txHash": "0xa1c3464e76a205d23ce75ced5a2f33624baafed2dc2c05c8c2549cded3eaaca4",
+    "error": null
+  },
+  {
+    "marketId": "10",
+    "symbol": "ETH",
+    "openPriceMicroUsd": "2138920000",
+    "closePriceMicroUsd": 2009570000,
+    "resolvedAt": "2026-05-29T11:15:50.686Z",
+    "txHash": "0x0a5818d420074e08fa16e9f441d39e33b4804a210b676a5af74080b01201e828",
+    "error": null
+  }
+]

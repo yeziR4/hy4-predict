@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vara Predict — On-Chain Prediction Markets</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">Vara<span> Predict</span></a>
+  <div class="nav-links">
+    <a href="/markets.html">Markets</a>
+    <a href="/my-bets.html">My Bets</a>
+    <span id="nav-wallet-btn"></span>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-badge">⚡ Live on Vara Network</div>
+  <h1>On-Chain Prediction<br>Markets for Everyone</h1>
+  <p>Bet VARA on real-world outcomes. Trustless resolution. No middleman. Free wallet to get started.</p>
+  <div class="hero-cta">
+    <button class="btn btn-primary btn-lg" id="hero-cta-btn" onclick="heroAction()">Get Started Free →</button>
+    <a href="/markets.html" class="btn btn-secondary btn-lg">Browse Markets</a>
+  </div>
+</section>
+
+<!-- Live stats bar -->
+<div class="stats-bar">
+  <div class="stat-item">
+    <div class="stat-value" id="stat-markets">—</div>
+    <div class="stat-label">Total Markets</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-value" id="stat-vara">—</div>
+    <div class="stat-label">VARA in Pools</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-value" id="stat-open">—</div>
+    <div class="stat-label">Open Markets</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-value" id="stat-updated" style="font-size:.85rem">—</div>
+    <div class="stat-label">Last Updated</div>
+  </div>
+</div>
+
+<!-- How it works -->
+<section class="section">
+  <div class="container">
+    <h2 style="text-align:center;font-size:1.75rem;font-weight:700;margin-bottom:.75rem">How it works</h2>
+    <p style="text-align:center;color:var(--muted);margin-bottom:2.5rem">Three steps from zero to on-chain bettor</p>
+    <div class="steps">
+      <div class="step-card">
+        <div class="step-num">1</div>
+        <h3>Get Your Wallet</h3>
+        <p>We generate a fresh Vara keypair and fund it with 10 VARA from our faucet — no setup required.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">2</div>
+        <h3>Pick a Market</h3>
+        <p>Browse open prediction markets. Choose an outcome — A or B — and stake any amount of VARA.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">3</div>
+        <h3>Claim Winnings</h3>
+        <p>When the market resolves, winners claim a proportional share of the losing pool. Pure on-chain.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Featured standard markets -->
+<section class="section" style="padding-top:0">
+  <div class="container">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+      <h2 style="font-size:1.4rem;font-weight:700">🔥 Live Markets</h2>
+      <a href="/markets.html" style="color:var(--primary);font-size:.9rem">View all →</a>
+    </div>
+    <div class="markets-grid" id="featured-markets">
+      <div class="loading-state"><div class="spinner"></div> Loading markets…</div>
+    </div>
+  </div>
+</section>
+
+<!-- Fast markets preview -->
+<section class="section" style="padding-top:0;padding-bottom:4rem">
+  <div class="container">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <div>
+        <h2 style="font-size:1.4rem;font-weight:700">⚡ Fast Markets <span style="font-size:.85rem;font-weight:500;color:var(--warn)">(~5 min)</span></h2>
+        <p style="color:var(--muted);font-size:.85rem;margin-top:.2rem">Auto-resolve using live price feeds. Will BTC/ETH/SOL be higher or lower?</p>
+      </div>
+      <a href="/markets.html?tab=fast" style="color:var(--warn);font-size:.9rem">View all ⚡ →</a>
+    </div>
+    <div class="markets-grid" id="featured-fast">
+      <div class="loading-state"><div class="spinner"></div> Loading…</div>
+    </div>
+  </div>
+</section>
+
+<!-- Onboard flow modal -->
+<div class="modal-overlay" id="onboard-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="onboard-title">Create Your Wallet</span>
+      <button class="modal-close" onclick="closeOnboard()">✕</button>
+    </div>
+
+    <!-- Step 1: Generate -->
+    <div id="step-1">
+      <p style="color:var(--muted);font-size:.9rem;margin-bottom:1.5rem">
+        We'll generate a fresh Vara keypair in your browser and send 10 VARA to it — you'll be betting in seconds.
+      </p>
+      <button class="btn btn-primary" style="width:100%" onclick="generateWallet()">
+        Generate My Wallet →
+      </button>
+    </div>
+
+    <!-- Step 2: Show keys -->
+    <div id="step-2" style="display:none">
+      <div class="warning-box" style="margin-bottom:1.5rem">
+        <span>⚠�?</span>
+        <div><strong>Save your mnemonic now.</strong> It will not be shown again. Without it you cannot access your funds.</div>
+      </div>
+
+      <div class="form-group">
+        <label>Your Wallet Address</label>
+        <div class="key-box" id="wallet-address" onclick="copyKeyBox('wallet-address')">
+          —<button class="copy-btn" onclick="event.stopPropagation();copyKeyBox('wallet-address')">Copy</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Secret Recovery Phrase (12 words) — SAVE THIS</label>
+        <div class="key-box" id="wallet-mnemonic" onclick="copyKeyBox('wallet-mnemonic')">
+          —<button class="copy-btn" onclick="event.stopPropagation();copyKeyBox('wallet-mnemonic')">Copy</button>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" style="width:100%;margin-top:.5rem" onclick="fundWallet()">
+        Fund My Wallet (10 VARA) →
+      </button>
+    </div>
+
+    <!-- Step 3: Funding -->
+    <div id="step-3" style="display:none;text-align:center;padding:1rem 0">
+      <div class="spinner" style="width:32px;height:32px;margin:0 auto 1rem"></div>
+      <p style="color:var(--muted)" id="step3-msg">Sending 10 VARA to your address…</p>
+    </div>
+
+    <!-- Step 4: Success → auto-redirect -->
+    <div id="step-4" style="display:none;text-align:center">
+      <div style="font-size:3rem;margin-bottom:1rem">🎉</div>
+      <h3 style="margin-bottom:.5rem">You're funded!</h3>
+      <p style="color:var(--muted);font-size:.9rem;margin-bottom:1.5rem">
+        10 VARA is on its way. Redirecting you to the markets…
+      </p>
+      <a href="/markets.html" class="btn btn-primary btn-lg" id="go-markets-btn" style="width:100%">Start Betting →</a>
+    </div>
+
+    <!-- Error -->
+    <div id="step-error" style="display:none">
+      <div class="alert alert-error">
+        <span>✕</span>
+        <div id="error-msg">Something went wrong.</div>
+      </div>
+      <button class="btn btn-secondary" style="width:100%;margin-top:.5rem" onclick="showStep(1)">Try Again</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>Vara Predict � On-Chain Prediction Markets · <a href="https://vara.network" target="_blank">Vara Network</a></p>
+  <p style="margin-top:.5rem">
+    <a href="https://github.com/yeziR4/Vara Predict" target="_blank">GitHub</a> ·
+    v1: <code style="font-size:.75rem">0x2aa206…</code> ·
+    v2: <code style="font-size:.75rem">0xd24f28…</code>
+  </p>
+</footer>
+
+<script>
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function cleanQ(q) {
+    if (!q) return q;
+    return q
+      .replace(/^\[Hackathon day \d+\]\s*/i, '')
+      .replace(/^\[Day \d+\]\s*/i, '')
+      .replace(/\(iter\s*\d+\)\s*/gi, '')
+      .trim();
+  }
+
+  function getSavedWallet() {
+    try { return JSON.parse(localStorage.getItem('hy4_wallet') || 'null'); } catch { return null; }
+  }
+
+  // ── Nav wallet button ─────────────────────────────────────────────────────
+  function updateNav() {
+    const w = getSavedWallet();
+    const el = document.getElementById('nav-wallet-btn');
+    if (w) {
+      // Show address + quick link, but keep "Get Wallet" accessible
+      el.innerHTML = `
+        <span style="font-size:.8rem;color:var(--success);margin-right:.5rem">�? ${w.address.slice(0,8)}…</span>
+        <a href="/my-bets.html" class="btn btn-secondary btn-sm" style="margin-right:.5rem">My Bets</a>
+        <button class="btn btn-primary btn-sm" onclick="showOnboard()">+ New Wallet</button>`;
+    } else {
+      el.innerHTML = `<button class="btn btn-primary btn-sm" onclick="showOnboard()">Get Wallet</button>`;
+    }
+  }
+
+  function heroAction() { showOnboard(); }
+
+  // ── Stats (auto-refresh every 30s) ────────────────────────────────────────
+  async function refreshStats() {
+    try {
+      const d = await fetch('/api/stats').then(r => r.json());
+      document.getElementById('stat-markets').textContent = d.totalMarkets ?? '—';
+      document.getElementById('stat-vara').textContent    = d.totalVara ? d.totalVara + ' VARA' : '—';
+      document.getElementById('stat-open').textContent    = d.openMarkets ?? '—';
+      document.getElementById('stat-updated').textContent = new Date().toLocaleTimeString();
+    } catch {}
+  }
+  refreshStats();
+  setInterval(refreshStats, 30_000);
+
+  // ── Featured markets ──────────────────────────────────────────────────────
+  fetch('/api/markets?type=standard').then(r => r.json()).then(markets => {
+    const open = markets.filter(m => (m.status?.kind ?? m.status) === 'Open').slice(-8).reverse();
+    const el = document.getElementById('featured-markets');
+    if (!open.length) { el.innerHTML = '<p style="color:var(--muted)">No open markets yet.</p>'; return; }
+    el.innerHTML = open.map(m => marketCard(m, 'standard')).join('');
+  }).catch(() => {
+    document.getElementById('featured-markets').innerHTML = '<p style="color:var(--muted)">Could not load markets.</p>';
+  });
+
+  fetch('/api/markets?type=fast').then(r => r.json()).then(markets => {
+    const open = markets.filter(m => (m.status?.kind ?? m.status) === 'Open').slice(0,4);
+    const el = document.getElementById('featured-fast');
+    if (!open.length) { el.innerHTML = '<p style="color:var(--muted)">No open fast markets right now.</p>'; return; }
+    el.innerHTML = open.map(m => marketCard(m, 'fast')).join('');
+  }).catch(() => {
+    document.getElementById('featured-fast').innerHTML = '<p style="color:var(--muted)">Could not load fast markets.</p>';
+  });
+
+  function marketCard(m, type) {
+    const q     = cleanQ(m.question);
+    const total = ((m.vara_a||0) + (m.vara_b||0)).toFixed(2);
+    const isFast = type === 'fast';
+    const betLink = isFast
+      ? `<a href="/markets.html?tab=fast" class="btn btn-primary btn-sm" style="background:var(--warn)">Bet ⚡</a>`
+      : `<a href="/markets.html" class="btn btn-primary btn-sm">Bet →</a>`;
+    const fastTag = isFast ? `<span class="fast-badge" style="margin-left:.3rem">⚡ Fast</span>` : '';
+    return `
+      <div class="market-card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="display:flex;gap:.4rem;align-items:center">
+            <span class="market-status status-open">�? Open</span>
+            ${fastTag}
+          </div>
+          <span class="market-id">#${m.id}</span>
+        </div>
+        <div class="market-question">${q}</div>
+        <div class="dual-bar">
+          <div class="dual-a" style="width:${m.pct_a}%;min-width:2px"></div>
+          <div class="dual-b" style="flex:1;min-width:2px"></div>
+        </div>
+        <div class="outcomes">
+          <div style="text-align:left">
+            <div style="font-size:.75rem;color:var(--success);font-weight:600">${m.outcome_a||'Yes'}</div>
+            <div style="font-size:1rem;font-weight:700">${m.pct_a}%</div>
+            <div style="font-size:.7rem;color:var(--muted)">${(m.vara_a||0).toFixed(2)} VARA</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:.75rem;color:#818cf8;font-weight:600">${m.outcome_b||'No'}</div>
+            <div style="font-size:1rem;font-weight:700">${m.pct_b}%</div>
+            <div style="font-size:.7rem;color:var(--muted)">${(m.vara_b||0).toFixed(2)} VARA</div>
+          </div>
+        </div>
+        <div class="market-footer">
+          <span class="pool-size">Pool: <span class="pool-vara">${total} VARA</span></span>
+          ${betLink}
+        </div>
+      </div>`;
+  }
+
+  // ── Onboard flow ──────────────────────────────────────────────────────────
+  let walletData = null;
+
+  function showOnboard() {
+    document.getElementById('onboard-modal').classList.add('open');
+    showStep(1);
+  }
+  function closeOnboard() { document.getElementById('onboard-modal').classList.remove('open'); }
+  document.getElementById('onboard-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeOnboard();
+  });
+
+  function showStep(n) {
+    [1,2,3,4].forEach(i => document.getElementById('step-'+i).style.display = 'none');
+    document.getElementById('step-error').style.display = 'none';
+    document.getElementById('step-'+n).style.display = '';
+  }
+
+  async function generateWallet() {
+    showStep(3);
+    document.getElementById('step3-msg').textContent = 'Generating wallet…';
+    try {
+      const r = await fetch('/api/new-wallet', { method: 'POST' });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      walletData = d;
+      document.getElementById('wallet-address').innerHTML =
+        d.address + ' <button class="copy-btn" onclick="event.stopPropagation();copyKeyBox(\'wallet-address\',\''+d.address+'\')">Copy</button>';
+      document.getElementById('wallet-mnemonic').innerHTML =
+        d.mnemonic + ' <button class="copy-btn" onclick="event.stopPropagation();copyKeyBox(\'wallet-mnemonic\',\''+d.mnemonic+'\')">Copy</button>';
+      showStep(2);
+    } catch (e) {
+      document.getElementById('error-msg').textContent = e.message;
+      document.getElementById('step-error').style.display = '';
+      document.getElementById('step-3').style.display = 'none';
+    }
+  }
+
+  async function fundWallet() {
+    if (!walletData) return;
+    showStep(3);
+    document.getElementById('step3-msg').textContent = 'Sending 10 VARA to your address…';
+    try {
+      const r = await fetch('/api/faucet', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: walletData.address })
+      });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      localStorage.setItem('hy4_wallet', JSON.stringify(walletData));
+      showStep(4);
+      updateNav();
+      // Auto-redirect to markets after 2.5s
+      setTimeout(() => { window.location.href = '/markets.html'; }, 2500);
+    } catch (e) {
+      document.getElementById('error-msg').textContent = e.message;
+      document.getElementById('step-error').style.display = '';
+      document.getElementById('step-3').style.display = 'none';
+    }
+  }
+
+  function copyKeyBox(id, text) {
+    const el = document.getElementById(id);
+    const val = text || el.textContent?.replace('Copy','').replace('Copied!','').trim();
+    if (val) {
+      navigator.clipboard.writeText(val);
+      const btn = el.querySelector('.copy-btn');
+      if (btn) { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 1500); }
+    }
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  updateNav();
+</script>
+</body>
+</html>
+

@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markets — Vara Predict</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">Vara<span> Predict</span></a>
+  <div class="nav-links">
+    <a href="/markets.html" class="active">Markets</a>
+    <a href="/my-bets.html">My Bets</a>
+    <a href="/leaderboard.html">Leaderboard</a>
+    <span id="nav-wallet-status"></span>
+  </div>
+</nav>
+
+<!-- Live stats banner -->
+<div class="live-stats-bar">
+  <div class="live-dot"></div>
+  <span class="live-stat"><strong id="ls-open">—</strong> open markets</span>
+  <span class="live-sep">·</span>
+  <span class="live-stat"><strong id="ls-vara">—</strong> VARA in pools</span>
+  <span class="live-sep">·</span>
+  <span class="live-stat"><strong id="ls-total">—</strong> total markets</span>
+  <span class="live-sep">·</span>
+  <span class="live-stat" style="color:var(--muted);font-size:.75rem" id="ls-updated">updating…</span>
+</div>
+
+<div class="markets-layout">
+  <!-- LEFT: markets panel -->
+  <div class="markets-main">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem">
+      <div>
+        <h1 style="font-size:1.75rem;font-weight:700">Prediction Markets</h1>
+        <p style="color:var(--muted);font-size:.9rem;margin-top:.25rem">Live on Vara Network — bet VARA on real outcomes</p>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="refreshMarkets()">⟳ Refresh</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-standard" onclick="switchTab('standard')">Standard Markets</button>
+      <button class="tab-btn" id="tab-fast" onclick="switchTab('fast')">⚡ Fast Markets (5-min)</button>
+    </div>
+
+    <!-- Standard markets -->
+    <div id="panel-standard">
+      <div id="markets-standard" class="markets-grid">
+        <div class="loading-state"><div class="spinner"></div> Loading markets…</div>
+      </div>
+    </div>
+
+    <!-- Fast markets -->
+    <div id="panel-fast" style="display:none">
+      <div class="alert alert-info" style="margin-bottom:1.5rem">
+        <span>⚡</span>
+        <div><strong>Fast Markets</strong> auto-resolve using live price feeds. Bet on whether BTC/ETH/SOL will be higher or lower after ~5 minutes.</div>
+      </div>
+      <div id="markets-fast" class="markets-grid">
+        <div class="loading-state"><div class="spinner"></div> Loading fast markets…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: activity sidebar -->
+  <aside class="activity-sidebar">
+    <div class="activity-header">
+      <span>⚡ Live Activity</span>
+      <span class="activity-dot" id="activity-pulse"></span>
+    </div>
+    <div id="activity-feed" class="activity-feed">
+      <div style="color:var(--muted);font-size:.8rem;padding:.5rem 0">Watching for bets…</div>
+    </div>
+  </aside>
+</div>
+
+<!-- Bet modal -->
+<div class="modal-overlay" id="bet-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Place a Bet</span>
+      <button class="modal-close" onclick="closeBetModal()">✕</button>
+    </div>
+
+    <div id="bet-market-info" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:1rem;margin-bottom:1.25rem">
+      <div style="font-size:.75rem;color:var(--muted);margin-bottom:.35rem">Market #<span id="bet-market-id"></span></div>
+      <div style="font-weight:600;font-size:.95rem" id="bet-question">—</div>
+    </div>
+
+    <div class="form-group">
+      <label>Choose Outcome</label>
+      <div class="outcome-choice">
+        <div class="choice-card" id="choice-a" onclick="selectOutcome('A')">
+          <div class="choice-label" style="color:var(--success)" id="label-a">A</div>
+          <div class="choice-desc" id="pct-a">50%</div>
+        </div>
+        <div class="choice-card" id="choice-b" onclick="selectOutcome('B')">
+          <div class="choice-label" style="color:#818cf8" id="label-b">B</div>
+          <div class="choice-desc" id="pct-b">50%</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Amount (VARA)</label>
+      <input type="number" id="bet-amount" placeholder="e.g. 1.0" min="0.1" step="0.1" value="1">
+    </div>
+
+    <div id="bet-wallet-section">
+      <div class="form-group">
+        <label>Your Mnemonic (12 words)</label>
+        <input type="password" id="bet-mnemonic" placeholder="word1 word2 word3 …">
+        <div style="font-size:.75rem;color:var(--muted);margin-top:.35rem">
+          Used to sign the transaction. Sent over HTTPS, never stored.
+        </div>
+      </div>
+    </div>
+
+    <div id="no-wallet-prompt" style="display:none;margin-bottom:1rem">
+      <div class="alert alert-info">
+        <span>💡</span>
+        <div>No wallet detected. <a href="/" onclick="closeBetModal();showOnboardFromMarkets()">Get a free wallet with 10 VARA →</a></div>
+      </div>
+    </div>
+
+    <div id="bet-result" style="display:none;margin-bottom:1rem"></div>
+
+    <button class="btn btn-primary" style="width:100%" id="bet-submit-btn" onclick="submitBet()">
+      Place Bet
+    </button>
+  </div>
+</div>
+
+<!-- Get wallet mini-modal (for no-wallet flow from markets page) -->
+<div class="modal-overlay" id="onboard-modal-markets">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Get Your Free Wallet</span>
+      <button class="modal-close" onclick="document.getElementById('onboard-modal-markets').classList.remove('open')">✕</button>
+    </div>
+    <p style="color:var(--muted);font-size:.9rem;margin-bottom:1.5rem">
+      We'll generate a Vara keypair and fund it with 10 VARA — ready to bet in seconds.
+    </p>
+    <div id="om-step-1">
+      <button class="btn btn-primary" style="width:100%" onclick="omGenerate()">Generate My Wallet →</button>
+    </div>
+    <div id="om-step-2" style="display:none">
+      <div class="warning-box" style="margin-bottom:1rem">
+        <span>⚠️</span>
+        <div><strong>Save your mnemonic.</strong> It cannot be recovered.</div>
+      </div>
+      <div class="form-group">
+        <label>Address</label>
+        <div class="key-box" id="om-address">—</div>
+      </div>
+      <div class="form-group">
+        <label>Secret Recovery Phrase — SAVE THIS</label>
+        <div class="key-box" id="om-mnemonic">—</div>
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-top:.5rem" onclick="omFund()">Fund with 10 VARA →</button>
+    </div>
+    <div id="om-step-3" style="display:none;text-align:center;padding:1rem 0">
+      <div class="spinner" style="width:32px;height:32px;margin:0 auto 1rem"></div>
+      <p style="color:var(--muted)">Sending 10 VARA…</p>
+    </div>
+    <div id="om-step-4" style="display:none;text-align:center">
+      <div style="font-size:3rem;margin-bottom:.75rem">🎉</div>
+      <h3 style="margin-bottom:.5rem">Funded!</h3>
+      <p style="color:var(--muted);font-size:.9rem;margin-bottom:1.25rem">10 VARA sent. Wallet saved to browser.</p>
+      <button class="btn btn-primary" style="width:100%" onclick="omDone()">Start Betting →</button>
+    </div>
+    <div id="om-error" style="display:none">
+      <div class="alert alert-error"><span>✕</span><div id="om-error-msg">Error</div></div>
+      <button class="btn btn-secondary" style="width:100%;margin-top:.5rem" onclick="omReset()">Try Again</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>Vara Predict • On-Chain Prediction Markets · <a href="https://vara.network" target="_blank">Vara Network</a></p>
+</footer>
+
+<script>
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function cleanQ(q) {
+    if (!q) return q;
+    let out = q, prev;
+    do {
+      prev = out;
+      out = out
+        .replace(/^\[v\d+-era\]\s*/i, '')
+        .replace(/^\[Hackathon day \d+\]\s*/i, '')
+        .replace(/^\[Day \d+\]\s*/i, '')
+        .replace(/\(iter\s*\d+\)\s*/gi, '');
+    } while (out !== prev);
+    return out.trim();
+  }
+
+  function timeAgo(ms) {
+    const s = Math.floor(ms / 1000);
+    if (s < 60) return s + 's ago';
+    const m = Math.floor(s / 60);
+    if (m < 60) return m + 'm ago';
+    const h = Math.floor(m / 60);
+    return h + 'h ago';
+  }
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  let currentTab = 'standard';
+  let currentMarket = null;
+  let selectedOutcome = null;
+  const loaded = {};
+  const prevState = {};   // for activity detection
+  const activityLog = []; // { time, message, type }
+  let omData = null;
+
+  // ── Wallet detection ──────────────────────────────────────────────────────
+  function getSavedWallet() {
+    try { return JSON.parse(localStorage.getItem('hy4_wallet') || 'null'); } catch { return null; }
+  }
+
+  function updateNavWallet() {
+    const w = getSavedWallet();
+    const el = document.getElementById('nav-wallet-status');
+    if (w) {
+      el.innerHTML = `
+        <span style="font-size:.8rem;color:var(--success);margin-right:.5rem">💳 ${w.address.slice(0,8)}…</span>
+        <a href="/my-bets.html" class="btn btn-secondary btn-sm" style="margin-right:.5rem">My Bets</a>
+        <button class="btn btn-primary btn-sm" onclick="showOnboardFromMarkets()">+ Wallet</button>`;
+    } else {
+      el.innerHTML = `<button class="btn btn-primary btn-sm" onclick="showOnboardFromMarkets()">Get Wallet</button>`;
+    }
+  }
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  async function refreshStats() {
+    try {
+      const d = await fetch('/api/stats').then(r => r.json());
+      document.getElementById('ls-open').textContent  = d.openMarkets  ?? '—';
+      document.getElementById('ls-vara').textContent  = d.totalVara ? d.totalVara + ' VARA' : '—';
+      document.getElementById('ls-total').textContent = d.totalMarkets ?? '—';
+      document.getElementById('ls-updated').textContent = 'updated ' + new Date().toLocaleTimeString();
+    } catch {}
+  }
+
+  // ── Load markets ──────────────────────────────────────────────────────────
+  async function loadMarkets(type) {
+    const el = document.getElementById('markets-' + type);
+    el.innerHTML = '<div class="loading-state"><div class="spinner"></div> Loading…</div>';
+    try {
+      const r = await fetch('/api/markets?type=' + type);
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' — server error');
+      const markets = await r.json();
+
+      // Restore prevState from sessionStorage so first-load refresh detects real changes
+      if (!prevState[type]) {
+        try {
+          const s = sessionStorage.getItem('vp_prev_' + type);
+          if (s) prevState[type] = JSON.parse(s);
+        } catch {}
+      }
+      // Detect activity changes
+      if (prevState[type]) detectActivity(prevState[type], markets, type);
+      prevState[type] = markets;
+      try { sessionStorage.setItem('vp_prev_' + type, JSON.stringify(markets)); } catch {}
+
+      loaded[type] = markets;
+      renderMarkets(type, markets);
+      refreshStats();
+    } catch (e) {
+      const isConn = e.message.includes('fetch') || e.message.includes('network') || e.message.includes('Failed');
+      el.innerHTML = `<div class="empty-state">
+        <div style="font-size:2rem;margin-bottom:.75rem">${isConn ? '📡' : '⚠️'}</div>
+        <h3>${isConn ? 'Cannot reach server' : 'Could not load markets'}</h3>
+        <p>${isConn ? 'Check your connection. Markets will retry automatically.' : e.message}</p>
+        <button class="btn btn-secondary btn-sm" style="margin-top:1rem" onclick="loadMarkets('${type}')">Retry</button>
+      </div>`;
+    }
+  }
+
+  function renderMarkets(type, markets) {
+    const el = document.getElementById('markets-' + type);
+    if (!markets.length) {
+      el.innerHTML = '<div class="empty-state"><h3>No markets found</h3><p>Check back soon.</p></div>';
+      return;
+    }
+    const sorted = [...markets].sort((a, b) => {
+      const aOpen = (a.status?.kind ?? a.status) === 'Open';
+      const bOpen = (b.status?.kind ?? b.status) === 'Open';
+      if (aOpen !== bOpen) return aOpen ? -1 : 1;
+      // Within open markets: highest liquidity first, then newest id
+      if (aOpen && bOpen) {
+        const aPool = (a.vara_a || 0) + (a.vara_b || 0);
+        const bPool = (b.vara_b || 0) + (b.vara_a || 0);
+        if (bPool !== aPool) return bPool - aPool;
+      }
+      return b.id - a.id;
+    });
+    el.innerHTML = sorted.map(m => renderCard(m, type)).join('');
+    // Start countdowns for fast markets
+    if (type === 'fast') startCountdowns();
+
+    // Handle ?market=ID deep link — open bet modal or scroll to card
+    if (urlMarketId && type === urlMarketType) {
+      const target = markets.find(m => String(m.id) === String(urlMarketId));
+      if (target) {
+        const status = target.status?.kind ?? target.status;
+        if (status === 'Open') {
+          setTimeout(() => openBetModal(target, type), 150);
+        } else {
+          // Scroll to the card and highlight it
+          setTimeout(() => {
+            const card = document.querySelector(`[data-market-id="${urlMarketId}"]`);
+            if (card) {
+              card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              card.style.outline = '2px solid var(--primary)';
+              card.style.outlineOffset = '3px';
+              setTimeout(() => { card.style.outline = ''; card.style.outlineOffset = ''; }, 3000);
+            }
+          }, 150);
+        }
+        urlMarketId = null; // only trigger once
+      }
+    }
+  }
+
+  function renderCard(m, type) {
+    const status     = m.status?.kind ?? m.status;
+    const isOpen     = status === 'Open';
+    const isResolving = status === 'Resolving';
+    const isFast     = type === 'fast';
+    const win        = m.winning_outcome?.kind ?? m.winning_outcome;
+    const totalVara  = ((m.vara_a || 0) + (m.vara_b || 0)).toFixed(2);
+    const q          = cleanQ(m.question);
+
+    const winBadge = win
+      ? `<span style="font-size:.75rem;color:var(--warn);font-weight:600">Winner: ${win === 'A' ? (m.outcome_a||'Yes') : (m.outcome_b||'No')}</span>`
+      : '';
+
+    let fastMeta = '';
+    if (isFast) {
+      const openPrice = m.open_price_micro_usd
+        ? '$' + (Number(m.open_price_micro_usd)/1e6).toLocaleString(undefined,{maximumFractionDigits:2})
+        : '—';
+      const resolveBlock = m.resolve_after_block;
+      const countdownHtml = (resolveBlock && isOpen)
+        ? `<span class="countdown-badge" data-block="${resolveBlock}" id="cd-${m.id}">block #${resolveBlock}</span>`
+        : (resolveBlock ? `<span style="font-size:.7rem;color:var(--muted)">resolved at #${resolveBlock}</span>` : '');
+      fastMeta = `
+        <div style="font-size:.75rem;color:var(--muted);display:flex;gap:.75rem;flex-wrap:wrap;align-items:center">
+          <span>${m.symbol ?? ''}</span>
+          <span>Open: <strong style="color:var(--text)">${openPrice}</strong></span>
+          ${countdownHtml}
+        </div>`;
+    }
+
+    const catLabel = { crypto:'🪙 Crypto', ai:'🤖 AI/Tech', world:'🌍 World', sports:'⚽ Sports', entertainment:'🎬 Entertainment' };
+    const catBadge = m.category && m.category !== 'general'
+      ? `<span style="font-size:.7rem;background:rgba(79,70,229,.15);color:#818cf8;border:1px solid rgba(79,70,229,.25);border-radius:999px;padding:.1rem .5rem">${catLabel[m.category] || m.category}</span>`
+      : '';
+    const closingBadge = m.closingLabel && isOpen
+      ? `<span style="font-size:.7rem;color:${m.daysLeft != null && m.daysLeft <= 3 ? 'var(--warn)' : 'var(--muted)'}">${m.closingLabel}</span>`
+      : '';
+
+    return `
+      <div class="market-card" data-market-id="${m.id}">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <span class="market-status status-${isOpen ? 'open' : isResolving ? 'resolving' : 'resolved'}">
+            ${isOpen ? '● Open' : isResolving ? '⏳ Resolving' : '✓ Resolved'}
+          </span>
+          <div style="display:flex;gap:.4rem;align-items:center">
+            ${catBadge}${closingBadge}
+            ${isFast ? '<span class="fast-badge">⚡ Fast</span>' : ''}
+          </div>
+          <span class="market-id">#${m.id}</span>
+        </div>
+
+        <div class="market-question">${q}</div>
+        ${fastMeta}
+        ${winBadge}
+
+        <div class="dual-bar">
+          <div class="dual-a" style="width:${m.pct_a}%;min-width:2px"></div>
+          <div class="dual-b" style="flex:1;min-width:2px"></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem">
+          <div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.15);border-radius:8px;padding:.6rem">
+            <div style="font-size:.72rem;font-weight:600;color:var(--success);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.outcome_a||'Yes'}</div>
+            <div style="font-size:1rem;font-weight:700">${m.pct_a}%</div>
+            <div style="font-size:.7rem;color:var(--muted)">${(m.vara_a||0).toFixed(2)} VARA</div>
+          </div>
+          <div style="background:rgba(79,70,229,.06);border:1px solid rgba(79,70,229,.2);border-radius:8px;padding:.6rem">
+            <div style="font-size:.72rem;font-weight:600;color:#818cf8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.outcome_b||'No'}</div>
+            <div style="font-size:1rem;font-weight:700">${m.pct_b}%</div>
+            <div style="font-size:.7rem;color:var(--muted)">${(m.vara_b||0).toFixed(2)} VARA</div>
+          </div>
+        </div>
+
+        <div class="market-footer">
+          <span class="pool-size">Pool: <span class="pool-vara">${totalVara} VARA</span></span>
+          ${isOpen
+            ? `<button class="btn btn-primary btn-sm" onclick="openBetModal(${JSON.stringify(m).replace(/"/g,'&quot;')}, '${type}')">Bet →</button>`
+            : isResolving
+              ? `<span style="font-size:.78rem;color:var(--warn)">⏳ Awaiting resolution</span>`
+              : `<span style="font-size:.8rem;color:var(--muted)">Closed</span>`}
+        </div>
+      </div>`;
+  }
+
+  // ── Countdown timers for fast markets ──────────────────────────────────────
+  // Vara produces ~1 block/sec. Estimate current block from Date.
+  // We use a rough reference: mainnet went live ~late 2023. Use a stored
+  // baseline and count up from page load.
+  const PAGE_LOAD_TIME = Date.now();
+  let estimatedCurrentBlock = null;
+
+  async function fetchCurrentBlock() {
+    try {
+      // Try to get an approximate block from any fast market's resolve_after_block
+      // and the fact that fast markets resolve after ~300 blocks (5 min)
+      if (loaded.fast && loaded.fast.length) {
+        const open = loaded.fast.filter(m => (m.status?.kind??m.status)==='Open' && m.resolve_after_block);
+        // A newly opened fast market resolves after ~300 blocks from creation
+        // We can't easily get exact block, so skip
+      }
+    } catch {}
+  }
+
+  function startCountdowns() {
+    document.querySelectorAll('.countdown-badge[data-block]').forEach(el => {
+      const targetBlock = parseInt(el.dataset.block);
+      updateCountdown(el, targetBlock);
+    });
+  }
+
+  function updateCountdown(el, targetBlock) {
+    // Without knowing the exact current block, show relative info
+    // Vara ~1 block/sec; show blocks remaining based on rough estimate
+    // We'll note the time when we first saw the market and estimate from there
+    if (!el._startTime) {
+      el._startTime = Date.now();
+      el._startBlock = estimatedCurrentBlock || null;
+    }
+
+    const intervalId = setInterval(() => {
+      if (!document.body.contains(el)) { clearInterval(intervalId); return; }
+      // Estimate seconds elapsed
+      const elapsed = Math.floor((Date.now() - el._startTime) / 1000);
+      // If we have a rough start block, compute remaining
+      if (el._startBlock) {
+        const remaining = targetBlock - (el._startBlock + elapsed);
+        if (remaining <= 0) {
+          el.textContent = 'Resolving…';
+          el.style.background = 'rgba(239,68,68,.15)';
+          el.style.color = '#fca5a5';
+          clearInterval(intervalId);
+        } else {
+          const mins = Math.floor(remaining / 60);
+          const secs = remaining % 60;
+          el.textContent = mins > 0 ? `~${mins}m ${secs}s left` : `~${secs}s left`;
+        }
+      } else {
+        el.textContent = `block #${targetBlock}`;
+      }
+    }, 1000);
+  }
+
+  // ── Tabs ──────────────────────────────────────────────────────────────────
+  function switchTab(tab) {
+    currentTab = tab;
+    document.getElementById('tab-standard').classList.toggle('active', tab === 'standard');
+    document.getElementById('tab-fast').classList.toggle('active', tab === 'fast');
+    document.getElementById('panel-standard').style.display = tab === 'standard' ? '' : 'none';
+    document.getElementById('panel-fast').style.display = tab === 'fast' ? '' : 'none';
+    if (!loaded[tab]) loadMarkets(tab);
+  }
+
+  function refreshMarkets() { loadMarkets(currentTab); }
+
+  // ── Activity detection ────────────────────────────────────────────────────
+  function detectActivity(prev, curr, type) {
+    const prevMap = Object.fromEntries(prev.map(m => [m.id, m]));
+    const now = Date.now();
+    for (const m of curr) {
+      const p = prevMap[m.id];
+      if (!p) {
+        // New market appeared
+        addActivity(`New market opened: #${m.id} "${cleanQ(m.question).slice(0,40)}…"`, 'new', now);
+        continue;
+      }
+      const dA = ((m.vara_a||0) - (p.vara_a||0));
+      const dB = ((m.vara_b||0) - (p.vara_b||0));
+      if (dA > 0.001) {
+        addActivity(`Bet on A (${dA.toFixed(2)} VARA) — #${m.id}`, 'bet-a', now);
+      }
+      if (dB > 0.001) {
+        addActivity(`Bet on B (${dB.toFixed(2)} VARA) — #${m.id}`, 'bet-b', now);
+      }
+      const prevStatus = p.status?.kind ?? p.status;
+      const currStatus = m.status?.kind ?? m.status;
+      if (prevStatus !== currStatus && currStatus === 'Resolved') {
+        const win = m.winning_outcome?.kind ?? m.winning_outcome;
+        addActivity(`Market #${m.id} resolved → ${win||'?'} wins`, 'resolve', now);
+      }
+    }
+  }
+
+  function addActivity(msg, type, time) {
+    activityLog.unshift({ msg, type, time });
+    if (activityLog.length > 30) activityLog.pop();
+    renderActivity();
+    pulseActivity();
+  }
+
+  function renderActivity() {
+    const el = document.getElementById('activity-feed');
+    if (!activityLog.length) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:.8rem;padding:.5rem 0">Watching for bets…</div>';
+      return;
+    }
+    el.innerHTML = activityLog.map(e => `
+      <div class="activity-item activity-${e.type}">
+        <span class="activity-dot-sm"></span>
+        <div>
+          <div class="activity-msg">${e.msg}</div>
+          <div class="activity-time">${timeAgo(Date.now() - e.time)}</div>
+        </div>
+      </div>`).join('');
+  }
+
+  function pulseActivity() {
+    const dot = document.getElementById('activity-pulse');
+    dot.classList.add('pulse-active');
+    setTimeout(() => dot.classList.remove('pulse-active'), 1000);
+  }
+
+  // ── Bet modal ─────────────────────────────────────────────────────────────
+  function openBetModal(market, type) {
+    currentMarket = { ...market, type };
+    selectedOutcome = null;
+    const q = cleanQ(market.question);
+    document.getElementById('bet-market-id').textContent = market.id;
+    document.getElementById('bet-question').textContent  = q;
+    document.getElementById('label-a').textContent = market.outcome_a || 'Yes';
+    document.getElementById('label-b').textContent = market.outcome_b || 'No';
+    document.getElementById('pct-a').textContent   = market.pct_a + '%  ·  ' + (market.vara_a||0).toFixed(2) + ' VARA';
+    document.getElementById('pct-b').textContent   = market.pct_b + '%  ·  ' + (market.vara_b||0).toFixed(2) + ' VARA';
+    document.getElementById('choice-a').className  = 'choice-card';
+    document.getElementById('choice-b').className  = 'choice-card';
+    document.getElementById('bet-result').style.display = 'none';
+    document.getElementById('bet-submit-btn').disabled = false;
+    document.getElementById('bet-submit-btn').textContent = 'Place Bet';
+
+    const wallet = getSavedWallet();
+    if (wallet) {
+      document.getElementById('bet-wallet-section').style.display = '';
+      document.getElementById('no-wallet-prompt').style.display = 'none';
+      document.getElementById('bet-mnemonic').value = wallet.mnemonic || '';
+    } else {
+      document.getElementById('bet-wallet-section').style.display = '';
+      document.getElementById('no-wallet-prompt').style.display = '';
+      document.getElementById('bet-mnemonic').value = '';
+    }
+
+    document.getElementById('bet-modal').classList.add('open');
+  }
+
+  function closeBetModal() { document.getElementById('bet-modal').classList.remove('open'); }
+  document.getElementById('bet-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeBetModal(); });
+
+  function selectOutcome(o) {
+    selectedOutcome = o;
+    document.getElementById('choice-a').className = 'choice-card' + (o === 'A' ? ' selected-a' : '');
+    document.getElementById('choice-b').className = 'choice-card' + (o === 'B' ? ' selected-b' : '');
+  }
+
+  async function submitBet() {
+    if (!selectedOutcome) return alert('Please select an outcome first.');
+    const mnemonic = document.getElementById('bet-mnemonic').value.trim();
+    const amount   = document.getElementById('bet-amount').value.trim();
+    if (!mnemonic) {
+      showOnboardFromMarkets();
+      closeBetModal();
+      return;
+    }
+    if (!amount || isNaN(amount) || Number(amount) <= 0) return alert('Enter a valid amount.');
+
+    const btn = document.getElementById('bet-submit-btn');
+    btn.disabled = true; btn.textContent = 'Submitting…';
+    document.getElementById('bet-result').style.display = 'none';
+
+    try {
+      const r = await fetch('/api/bet', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mnemonic, marketId: currentMarket.id,
+          outcome: selectedOutcome, amount, type: currentMarket.type })
+      });
+      const d = await r.json();
+      const el = document.getElementById('bet-result');
+      if (d.error) {
+        const isBettingClosed = d.error.toLowerCase().includes('betting period');
+        if (isBettingClosed) {
+          el.innerHTML = `<div class="alert alert-error"><span>⏳</span>
+            <div>This fast market's betting window has closed. Markets refresh automatically every 20 seconds.
+              <button class="btn btn-secondary btn-sm" style="margin-top:.5rem;display:block"
+                onclick="closeBetModal();loadMarkets('fast')">Refresh now →</button>
+            </div></div>`;
+        } else {
+          el.innerHTML = `<div class="alert alert-error"><span>✕</span><div>${d.error}</div></div>`;
+        }
+      } else {
+        const subscan = `https://vara.subscan.io/extrinsic/${d.txHash}`;
+        el.innerHTML = `<div class="alert alert-success"><span>✓</span>
+          <div>Bet placed!
+            <a href="${subscan}" target="_blank"
+               style="color:inherit;text-decoration:underline;display:block;margin-top:.2rem;font-size:.78rem">
+              View on Subscan ↗ <code>${d.txHash?.slice(0,18)}…</code>
+            </a>
+          </div></div>`;
+        addActivity(`You bet ${amount} VARA on ${selectedOutcome} — #${currentMarket.id}`, 'bet-a', Date.now());
+        setTimeout(() => loadMarkets(currentMarket.type), 2000);
+      }
+      el.style.display = '';
+      btn.textContent = 'Place Another';
+      btn.disabled = false;
+    } catch (e) {
+      document.getElementById('bet-result').innerHTML = `<div class="alert alert-error"><span>✕</span><div>${e.message}</div></div>`;
+      document.getElementById('bet-result').style.display = '';
+      btn.disabled = false; btn.textContent = 'Try Again';
+    }
+  }
+
+  // ── Onboard mini-flow (from markets page) ─────────────────────────────────
+  function showOnboardFromMarkets() {
+    omReset();
+    document.getElementById('onboard-modal-markets').classList.add('open');
+  }
+
+  function omReset() {
+    ['om-step-2','om-step-3','om-step-4','om-error'].forEach(id => document.getElementById(id).style.display = 'none');
+    document.getElementById('om-step-1').style.display = '';
+  }
+
+  async function omGenerate() {
+    document.getElementById('om-step-1').style.display = 'none';
+    document.getElementById('om-step-3').style.display = '';
+    document.getElementById('om-step-3').querySelector('p').textContent = 'Generating wallet…';
+    try {
+      const r = await fetch('/api/new-wallet', { method: 'POST' });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      omData = d;
+      document.getElementById('om-address').textContent = d.address;
+      document.getElementById('om-mnemonic').textContent = d.mnemonic;
+      document.getElementById('om-step-3').style.display = 'none';
+      document.getElementById('om-step-2').style.display = '';
+    } catch (e) {
+      document.getElementById('om-step-3').style.display = 'none';
+      document.getElementById('om-error-msg').textContent = e.message;
+      document.getElementById('om-error').style.display = '';
+    }
+  }
+
+  async function omFund() {
+    if (!omData) return;
+    document.getElementById('om-step-2').style.display = 'none';
+    document.getElementById('om-step-3').style.display = '';
+    document.getElementById('om-step-3').querySelector('p').textContent = 'Sending 10 VARA…';
+    try {
+      const r = await fetch('/api/faucet', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address: omData.address })
+      });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+      localStorage.setItem('hy4_wallet', JSON.stringify(omData));
+      document.getElementById('om-step-3').style.display = 'none';
+      document.getElementById('om-step-4').style.display = '';
+      updateNavWallet();
+    } catch (e) {
+      document.getElementById('om-step-3').style.display = 'none';
+      document.getElementById('om-error-msg').textContent = e.message;
+      document.getElementById('om-error').style.display = '';
+    }
+  }
+
+  function omDone() {
+    document.getElementById('onboard-modal-markets').classList.remove('open');
+    updateNavWallet();
+  }
+
+  document.getElementById('onboard-modal-markets').addEventListener('click', e => {
+    if (e.target === e.currentTarget) document.getElementById('onboard-modal-markets').classList.remove('open');
+  });
+
+  // ── Auto-refresh ──────────────────────────────────────────────────────────
+  // Standard markets: every 30s (was 60s)
+  // Fast markets: every 20s — they have short betting windows
+  setInterval(() => { loadMarkets('standard'); renderActivity(); }, 30_000);
+  setInterval(() => { loadMarkets('fast');     }, 20_000);
+  setInterval(renderActivity, 15_000); // Keep relative timestamps fresh
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  updateNavWallet();
+  refreshStats();
+  // Parse URL params
+  const _urlParams    = new URLSearchParams(location.search);
+  const urlTab        = _urlParams.get('tab');
+  let   urlMarketId   = _urlParams.get('market');   // e.g. ?market=1234
+  const urlMarketType = _urlParams.get('type') || 'standard'; // ?type=fast
+  if (urlMarketType === 'fast' || urlTab === 'fast') {
+    switchTab('fast');
+  } else {
+    loadMarkets('standard');
+  }
+  // If deep-linking to a fast market, also load fast tab
+  if (urlMarketId && urlMarketType === 'fast' && urlTab !== 'fast') {
+    switchTab('fast');
+  }
+</script>
+</body>
+</html>
+
