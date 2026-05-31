@@ -365,13 +365,13 @@ app.get('/agent-docs', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'agent-docs.html'));
 });
 
-// ── Health (enriched for agents) ──────────────────────────────────────────────
-app.get('/api/health', async (_, res) => {
-  let openMarkets = null;
-  try {
-    const [std, fast] = await Promise.all([getMarkets('standard'), getMarkets('fast')]);
-    openMarkets = [...std, ...fast].filter(m => m.status === 'Open').length;
-  } catch {}
+// ── Health ────────────────────────────────────────────────────────────────────
+// Responds immediately — does NOT wait for chain queries so Railway healthcheck
+// never times out. Cached market count is included if already populated.
+app.get('/api/health', (_, res) => {
+  const openMarkets = (cache.standard && cache.fast)
+    ? [...cache.standard, ...cache.fast].filter(m => m.status === 'Open').length
+    : null;
   res.json({
     status:           'live',
     timestamp:        new Date().toISOString(),
