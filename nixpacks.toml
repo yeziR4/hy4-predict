@@ -1,0 +1,13 @@
+# nixpacks.toml — Railway build config
+# better-sqlite3 (a vara-wallet dependency) requires native compilation tools.
+[phases.setup]
+nixPkgs = ["nodejs_20", "python3", "gcc", "gnumake"]
+
+[phases.install]
+cmds = ["npm install --build-from-source"]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "node server.js"
