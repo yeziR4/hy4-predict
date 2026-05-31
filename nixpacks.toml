@@ -1,10 +1,11 @@
 # nixpacks.toml — Railway build config
-# better-sqlite3 (a vara-wallet dependency) requires native compilation tools.
+# better-sqlite3 (vara-wallet dep) needs python3 + gcc to compile native bindings.
+# Node 20 is pinned because Node 24 has no prebuilt better-sqlite3 binaries.
 [phases.setup]
 nixPkgs = ["nodejs_20", "python3", "gcc", "gnumake"]
 
 [phases.install]
-cmds = ["npm install --build-from-source"]
+cmds = ["npm ci"]
 
 [phases.build]
 cmds = []
