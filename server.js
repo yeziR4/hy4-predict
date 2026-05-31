@@ -385,6 +385,26 @@ app.get('/api/health', async (_, res) => {
   });
 });
 
+// ── Debug (chain query diagnostic) ───────────────────────────────────────────
+app.get('/api/debug/chain', async (req, res) => {
+  const start = Date.now();
+  try {
+    const r = await callQuery(PID_V1, 'PredictionMarket/Market', [1481]);
+    res.json({
+      ok: true,
+      ms: Date.now() - start,
+      result: r,
+      node: process.execPath,
+      vw_script: VW_SCRIPT,
+      idl_exists: fs.existsSync(IDL_PATH),
+      idl_path: IDL_PATH,
+      network: NETWORK,
+    });
+  } catch (e) {
+    res.json({ ok: false, ms: Date.now() - start, error: e.message, node: process.execPath, vw_script: VW_SCRIPT });
+  }
+});
+
 // ── Agent API ─────────────────────────────────────────────────────────────────
 
 // GET /api/agent/categories — list available categories + market count
