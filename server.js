@@ -21,8 +21,8 @@ const FUNDER_WALLET = process.env.FUNDER_WALLET || 'hy4-agent';
 const FUNDER_MN     = process.env.FUNDER_MNEMONIC || '';
 const FUNDER_SEED   = process.env.FUNDER_SEED   || '';    // 0x… hex seed (alternative to mnemonic)
 const FUNDER_JSON   = process.env.FUNDER_WALLET_JSON || ''; // base64 PKCS8 wallet file (Railway)
-const PID_V1        = process.env.PROGRAM_ID_V1 || '0x2aa206e02547b2c23751e112c0751acb463d80756c34477f12db89fa1fe877e6';
-const PID_V2        = process.env.PROGRAM_ID_V2 || '0xd24f2886dcb29dec16fc53214b7c8e498b2e96ea55d31a1497571e1ae15f5271';
+const PID_V1        = (process.env.PROGRAM_ID_V1 || '0x2aa206e02547b2c23751e112c0751acb463d80756c34477f12db89fa1fe877e6').trim();
+const PID_V2        = (process.env.PROGRAM_ID_V2 || '0xd24f2886dcb29dec16fc53214b7c8e498b2e96ea55d31a1497571e1ae15f5271').trim();
 const FAUCET_VARA   = Number(process.env.FAUCET_AMOUNT_VARA || 10);
 
 // vara-wallet binary
