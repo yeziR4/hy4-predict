@@ -1,0 +1,549 @@
+{
+  "kGmFEEaxikR1ovEdtzeVLhzqHPVuadxqFPyT9w95p2QpQTWbE": {
+    "bets": [
+      {
+        "marketId": 1466,
+        "outcome": "A",
+        "amount": 5,
+        "type": "standard",
+        "placedAt": "2026-05-28T21:12:45.953Z",
+        "txHash": "0xda6cd74d0075176bca30813d5bf11abdf38a8e765e3c9968cbfe61eec89d95c3"
+      },
+      {
+        "marketId": 1464,
+        "outcome": "A",
+        "amount": 1.67,
+        "type": "standard",
+        "placedAt": "2026-05-28T21:17:52.047Z",
+        "txHash": "0xe90327ce236df5024b907058ded280c2ee71f0ae9105be76c2e313f1f9839e36"
+      }
+    ]
+  },
+  "kGkXcam2nYPtNXjRu942KUSUZy4kZAfUcDTC3R5iHqiaTaAse": {
+    "bets": [
+      {
+        "marketId": 1466,
+        "outcome": "B",
+        "amount": 2,
+        "type": "standard",
+        "placedAt": "2026-05-28T21:22:51.966Z",
+        "txHash": "0x94abbc47df3a3411ee25a863bc1ea6c4c85164b4f3a13742bbf376a136be5c7f"
+      },
+      {
+        "marketId": 1465,
+        "outcome": "B",
+        "amount": 2,
+        "type": "standard",
+        "placedAt": "2026-05-28T21:23:01.092Z",
+        "txHash": "0x7c7e2f4216185683af6f6303c290b4504619afc0f24cf588fd6004607f53ba5d"
+      }
+    ]
+  },
+  "kGjVGY9gRiFtYyVVigjk94Z2GeemgetygWexxN8Bf2d51fsQE": {
+    "bets": [
+      {
+        "marketId": 1467,
+        "outcome": "A",
+        "amount": 2.5,
+        "type": "standard",
+        "placedAt": "2026-05-29T11:23:33.698Z",
+        "txHash": "0x02e8f651b4c4a6eb1962d7fd5af2b7cb617b045db9ef6d16b2b3eb9682faf3d2"
+      },
+      {
+        "marketId": 1467,
+        "outcome": "A",
+        "amount": 2.5,
+        "type": "standard",
+        "placedAt": "2026-05-29T11:23:45.086Z",
+        "txHash": "0x191b2552164c10e9293b0c5aa7685e2e485634539f5e6270ba0432251925f25b"
+      },
+      {
+        "marketId": 1468,
+        "outcome": "A",
+        "amount": 2.5,
+        "type": "standard",
+        "placedAt": "2026-05-29T11:23:54.163Z",
+        "txHash": "0x6af6d45d6d7932c43ed28dfe1041018aab70741f0d88098a4b8513bfe97b1e2f"
+      }
+    ]
+  },
+  "kGhpQyc5k4uew7kg2BJQeZ5ftqPbLB4csmgf9Dy4EsSS97t6M": {
+    "bets": [
+      {
+        "marketId": 1467,
+        "outcome": "B",
+        "amount": 5,
+        "type": "standard",
+        "placedAt": "2026-05-29T11:57:30.913Z",
+        "txHash": "0x962c240533632f6077bd215be1bf822dcca7f0e985a4c67dd72b85450d1c8345"
+      }
+    ]
+  },
+  "kGi65CJGjrEEB8mngMFSUWo59qo22yYM6F7m5kvtNPga4kx5y": {
+    "bets": [
+      {
+        "marketId": 1462,
+        "outcome": "A",
+        "amount": 0.5,
+        "type": "standard",
+        "placedAt": "2026-05-29T12:04:39.928Z",
+        "txHash": "0xf6ec4c3f21d1a65ccd9f1101e93b8f7ba2138150a2089215887578c7bdcac29a"
+      }
+    ]
+  },
+  "kGjShejxK5CoZmAy7B9buBx1cH446cKYq84yHyUQU9En4khvi": {
+    "bets": [
+      {
+        "marketId": 1463,
+        "outcome": "B",
+        "amount": 0.5,
+        "type": "standard",
+        "placedAt": "2026-05-29T12:04:57.766Z",
+        "txHash": "0x18301c59d75b5bd4db468fa685e794824d0b2ae1d638892a5b681f4684d88ee5"
+      }
+    ]
+  },
+  "kGgp1oUmjQ38CT1n1BKwr2uKR3D5Bow2qNVh9ifq29DC116o5": {
+    "bets": [
+      {
+        "marketId": 1467,
+        "outcome": "B",
+        "amount": 1.5,
+        "type": "standard",
+        "placedAt": "2026-05-29T14:04:39.662Z",
+        "txHash": "0x45cf3a18737fe7b7f77126eb2848b6cab2e2e0c558132a3d1fd4a09fe24c1c94"
+      },
+      {
+        "marketId": 1462,
+        "outcome": "A",
+        "amount": 2,
+        "type": "standard",
+        "placedAt": "2026-05-29T14:11:33.508Z",
+        "txHash": "0x59c1e50d65ae8f6bcabaddc475f6219f6ebce02419cbb1292645ca2379085a14"
+      },
+      {
+        "marketId": 1464,
+        "outcome": "A",
+        "amount": 2,
+        "type": "standard",
+        "placedAt": "2026-05-29T14:11:42.681Z",
+        "txHash": "0x81d05f607cae324c27d28f902fbbca597cdf1b0f3b3a90c6f9389f66725e494e"
+      },
+      {
+        "marketId": 1466,
+        "outcome": "A",
+        "amount": 2,
+        "type": "standard",
+        "placedAt": "2026-05-29T14:11:51.923Z",
+        "txHash": "0x9439620afeed3014de4187f648164baad38042135ab928db957014524120676b"
+      }
+    ]
+  },
+  "kGiinaGbVR2YQswAVjKrgeB9tiEWESGSCJXMmMq4NJsMHvqfW": {
+    "bets": [
+      {
+        "marketId": 1469,
+        "outcome": "A",
+        "amount": 1.5,
+        "type": "standard",
+        "placedAt": "2026-05-29T14:17:12.670Z",
+        "txHash": "0xb6cd98b32237afb640d4b3ccd9b8f2001ff5e8e7b205e2d664a9cb722cb61182"
+      },
+      {
+        "marketId": 1468,
+        "outcome": "A",
+        "amount": 1.5,
+        "type": "standard",
+        "placedAt": "2026-05-29T14:17:24.811Z",
+        "txHash": "0x936874a01afd681f20b202d7f9ece5d16dd891c1cf4a88f4c3ce77e2221565b8"
+      },
+      {
+        "marketId": 1467,
+        "outcome": "A",
+        "amount": 1.5,
+        "type": "standard",
+        "placedAt": "2026-05-29T14:17:36.656Z",
+        "txHash": "0xc125ccdf1bd4e2f4892874cb05b59e4f6b67d1fb4d356ca0091c56e2ae24c35d"
+      },
+      {
+        "marketId": 1466,
+        "outcome": "A",
+        "amount": 1.5,
+        "type": "standard",
+        "placedAt": "2026-05-29T14:17:48.659Z",
+        "txHash": "0xaa1439acc94057346032e382c0f63ba3e61354aece357b33fff1e3ec5b9a2b4c"
+      }
+    ]
+  },
+  "kGkvcgCxoLZVe9minVQs8WQp4Lk6wmwpv17C7AMJqhDz1E5nr": {
+    "bets": [
+      {
+        "marketId": 1478,
+        "outcome": "A",
+        "amount": 2,
+        "type": "standard",
+        "placedAt": "2026-05-29T20:51:06.749Z",
+        "txHash": "0x18e5b51498788af86d60b2d2fa9bf48c698d438371d14f7192e9067810cef189"
+      },
+      {
+        "marketId": 1479,
+        "outcome": "A",
+        "amount": 2,
+        "type": "standard",
+        "placedAt": "2026-05-29T20:51:18.304Z",
+        "txHash": "0xfad4dc84551416a299d67bd6a78fed61a78d7829d7cdafe6adf4b625450c8ab2"
+      },
+      {
+        "marketId": 1480,
+        "outcome": "B",
+        "amount": 2,
+        "type": "standard",
+        "placedAt": "2026-05-29T20:51:27.147Z",
+        "txHash": "0xb08d34ee1163f6c23e1e2d1a36413c1afa5c3b2dc6d6949f0a3c3d1dddfae037"
+      },
+      {
+        "marketId": 1481,
+        "outcome": "B",
+        "amount": 1.5,
+        "type": "standard",
+        "placedAt": "2026-05-29T20:51:36.060Z",
+        "txHash": "0x9622a72a10f2483951b2e6571c19711decad024cf229728ece82c97679bd8a43"
+      }
+    ]
+  },
+  "kGkXAAEiS5qQcfr6qbaRBzyGTUwr4bCkRaTaSDMfBq9vojNaq": {
+    "bets": [
+      {
+        "marketId": 1478,
+        "outcome": "A",
+        "amount": 2,
+        "type": "standard",
+        "placedAt": "2026-05-29T21:16:59.997Z",
+        "txHash": "0x0e04bd2fe5f0db30dff0c3bde67ec1b673634328199808965bc5a8f4265f3889"
+      },
+      {
+        "marketId": 1479,
+        "outcome": "B",
+        "amount": 2,
+        "type": "standard",
+        "placedAt": "2026-05-29T21:17:08.956Z",
+        "txHash": "0xeb1077e8c6e5f91c03ad92faff55a3517d02b890de51c9edfa1fec9b5791d23b"
+      },
+      {
+        "marketId": 1480,
+        "outcome": "B",
+        "amount": 2,
+        "type": "standard",
+        "placedAt": "2026-05-29T21:17:17.940Z",
+        "txHash": "0xa95ab67705512e04a6ddd26571cad58b0bb699d18fb80ecab86b5cbc99246d1a"
+      },
+      {
+        "marketId": 1481,
+        "outcome": "A",
+        "amount": 1.5,
+        "type": "standard",
+        "placedAt": "2026-05-29T21:17:24.088Z",
+        "txHash": "0xec711399afeed44e39635541ca8656181203e0f064d0e2f9d0b7dd7a5b9da757"
+      }
+    ]
+  },
+  "kGhuMaVcjbeTCziZH59CMRM2JwfXWeuxzyrXpwNkhLHbfLsUT": {
+    "bets": [
+      {
+        "marketId": 1479,
+        "outcome": "A",
+        "amount": 2,
+        "type": "standard",
+        "placedAt": "2026-05-29T21:53:21.211Z",
+        "txHash": "0x58df2998955d3d43c179488d13a4fde2b8b9608b271dbd132915192cceba7d50"
+      },
+      {
+        "marketId": 1481,
+        "outcome": "A",
+        "amount": 1,
+        "type": "standard",
+        "placedAt": "2026-05-30T07:10:51.173Z",
+        "txHash": "0xf9aa34c877fb044ca207196f38254be046fb1a5f40cf676732e4944124c23616"
+      }
+    ]
+  },
+  "kGjSWdtG58fhyi6VSAZGDPqrd37A9V5qAe8L8stv9GATwJz1j": {
+    "bets": [
+      {
+        "marketId": 1491,
+        "outcome": "A",
+        "amount": 1.5,
+        "type": "standard",
+        "placedAt": "2026-05-30T08:11:15.178Z",
+        "txHash": "0xbd0ce12c89d095f3e16724efa8f424bd491c756d8141525afe0b4b54a239a8cf"
+      }
+    ]
+  },
+  "kGiFygf4v8EtqXXVVh4WmiZ6DvPE9fjEFqU8v4kDGEnBnY1DJ": {
+    "bets": [
+      {
+        "marketId": 1491,
+        "outcome": "A",
+        "amount": 1.5,
+        "type": "standard",
+        "placedAt": "2026-05-30T08:30:36.915Z",
+        "txHash": "0xf1a5bc6446f07874c43412ed63f13bf18ab67375042d41eb5b1f001799a7b929"
+      },
+      {
+        "marketId": 1491,
+        "outcome": "A",
+        "amount": 1,
+        "type": "standard",
+        "placedAt": "2026-05-30T08:34:54.785Z",
+        "txHash": "0xe2fa7d40ca37a619e49ef7c629909eedb4b5fda16891d32af090302142994983"
+      },
+      {
+        "marketId": 1491,
+        "outcome": "A",
+        "amount": 4,
+        "type": "standard",
+        "placedAt": "2026-05-30T11:32:30.028Z",
+        "txHash": "0x54605a72e250b4ec56743e3d119826bff9723e1412961a400dcb6fbffca6a7f5"
+      },
+      {
+        "marketId": 1491,
+        "outcome": "A",
+        "amount": 1,
+        "type": "standard",
+        "placedAt": "2026-05-30T11:33:42.992Z",
+        "txHash": "0xcd0d0100d390ae37a57bf9bd3b4c9a0c54be50349d65427f73f7f87c07a9314c"
+      }
+    ]
+  },
+  "kGhduQzAPh9DzuRrpv6Wx9LipBhp1W4PnfJXpbC8rcoL8GTxG": {
+    "bets": [
+      {
+        "marketId": 1491,
+        "outcome": "A",
+        "amount": 1.5,
+        "type": "standard",
+        "placedAt": "2026-05-30T11:08:45.495Z",
+        "txHash": "0x3b65834c34cda6a6f75b46fda64f3de7d319f1b575c7a8f074718a04a952b8d7"
+      }
+    ]
+  },
+  "kGioTM3cC7DsGKb7GhD8A9VHQk6dcubrSFNs9s44W3CA8xS3s": {
+    "bets": [
+      {
+        "marketId": 1491,
+        "outcome": "B",
+        "amount": 1,
+        "type": "standard",
+        "placedAt": "2026-05-30T11:09:03.417Z",
+        "txHash": "0x65d6b9ecffe37013ee864b349b65e88af940444b7f61c5eb6acda897dbd22239"
+      },
+      {
+        "marketId": 1468,
+        "outcome": "B",
+        "amount": 1,
+        "type": "standard",
+        "placedAt": "2026-05-30T11:09:14.930Z",
+        "txHash": "0x64c7690f7d1cdf6eeff8bd76a5eccdd50543da217258f8cbaf5f866f1787be2d"
+      },
+      {
+        "marketId": 1468,
+        "outcome": "B",
+        "amount": 1,
+        "type": "standard",
+        "placedAt": "2026-05-30T11:09:27.105Z",
+        "txHash": "0x2a9968db02404c99079752b754d06c86152b8f08b169c4e10f9d416f4a861607"
+      },
+      {
+        "marketId": 1468,
+        "outcome": "B",
+        "amount": 1,
+        "type": "standard",
+        "placedAt": "2026-05-30T11:09:39.374Z",
+        "txHash": "0xcc7fe7c3823c9467b97566eef7c24a96b29dee0d580c22198b5add6a2aa910c2"
+      },
+      {
+        "marketId": 1468,
+        "outcome": "B",
+        "amount": 1,
+        "type": "standard",
+        "placedAt": "2026-05-30T11:10:35.847Z",
+        "txHash": "0x59b326bfab1f68b5cd7a1df55048721b567fd8c968ddfd1f65e261a06cc9faf9"
+      },
+      {
+        "marketId": 1468,
+        "outcome": "B",
+        "amount": 1,
+        "type": "standard",
+        "placedAt": "2026-05-30T11:10:50.978Z",
+        "txHash": "0x3d008f1750fc74bc4cb330d2f990cc3576e75138462d35d89d54e513fc79d06e"
+      },
+      {
+        "marketId": 1468,
+        "outcome": "B",
+        "amount": 1,
+        "type": "standard",
+        "placedAt": "2026-05-30T11:11:02.878Z",
+        "txHash": "0xf689219d282c9fa3f9177a1ff64993988ecff34004f59026ddd1330a9ef3f5b3"
+      }
+    ]
+  },
+  "kGmFUESkwQkzqmj6VkSQam5e399v6noGf3wuuDUeLZVSvZtou": {
+    "bets": [
+      {
+        "marketId": 1491,
+        "outcome": "A",
+        "amount": 1.5,
+        "type": "standard",
+        "placedAt": "2026-05-30T11:15:57.248Z",
+        "txHash": "0x963343d88876a55b40a953569260176939fde149b27fefe6e19658b153d8c140"
+      }
+    ]
+  },
+  "kGfY2K2qMkcghpM8goCtB9GMCjcizEJ82g7HwG9MVykBp9eNZ": {
+    "bets": [
+      {
+        "marketId": 1491,
+        "outcome": "A",
+        "amount": 1.5,
+        "type": "standard",
+        "placedAt": "2026-05-30T11:45:45.077Z",
+        "txHash": "0x61b74e8b0eba6232634e5400a4f9a09c1346ecb84f85690fe7d71b311ecb681b"
+      }
+    ]
+  },
+  "kGfgZnjmXfmkD7d11tyjYhVcyd9LLjFBn8CEvjb7a5EY85w6K": {
+    "bets": [
+      {
+        "marketId": 1491,
+        "outcome": "A",
+        "amount": 1.5,
+        "type": "standard",
+        "placedAt": "2026-05-30T11:46:05.980Z",
+        "txHash": "0xb85b950114468a0aad6049f4fd16ee22407e8367213ff975fcbf6c2a0801e664"
+      }
+    ]
+  },
+  "kGivmg9Ks2d4fr7A9VsH2fcDRHwuzWRcV3Yh5boU1QcfXsGEF": {
+    "bets": [
+      {
+        "marketId": 1491,
+        "outcome": "A",
+        "amount": 1.5,
+        "type": "standard",
+        "placedAt": "2026-05-30T11:46:36.055Z",
+        "txHash": "0x43e820972e8c2ea3532892bd3f84131e12b77d92055050daa2bfb96e8b41b7a5"
+      }
+    ]
+  },
+  "kGfpGQrbasjH6Qbu5UY9Tp9eWkWKQn8ibC75TH3xkoNp48odm": {
+    "bets": [
+      {
+        "marketId": 1491,
+        "outcome": "A",
+        "amount": 1.5,
+        "type": "standard",
+        "placedAt": "2026-05-30T11:55:18.261Z",
+        "txHash": "0x208a222efc9233f330fc080d2d7c4a4fe98c753ddec984ec2abf1517153658a7"
+      }
+    ]
+  },
+  "kGgQZiYdUu6Yyfy7SYVKZoDRjj5NM9pRtMypvaZu8mdoQBVbc": {
+    "bets": [
+      {
+        "marketId": 1491,
+        "outcome": "A",
+        "amount": 1.5,
+        "type": "standard",
+        "placedAt": "2026-05-30T11:58:20.877Z",
+        "txHash": "0xe8288a6eb88e7a0c8927f9c5ba023e51433f2a329522f09e082f8801e8596c35"
+      }
+    ]
+  },
+  "kGhMEe5MdtbGybSo8eMntwpssmuXLaXj74cr4Lo9iErhrVP8w": {
+    "bets": [
+      {
+        "marketId": 1468,
+        "outcome": "A",
+        "amount": 1,
+        "type": "standard",
+        "placedAt": "2026-05-30T12:23:26.899Z",
+        "txHash": "0xf802edd628fe32d8c3fc4f2d3df41f44c3b43ef625f5ebb31f94c98fba60ac73"
+      },
+      {
+        "marketId": 1468,
+        "outcome": "A",
+        "amount": 1,
+        "type": "standard",
+        "placedAt": "2026-05-30T12:23:44.878Z",
+        "txHash": "0xa2443bf0bdb04ec48cb3187a1bed38165c4c7355197bd529d1b2a7bfda38d75a"
+      },
+      {
+        "marketId": 1468,
+        "outcome": "A",
+        "amount": 1,
+        "type": "standard",
+        "placedAt": "2026-05-30T12:23:57.914Z",
+        "txHash": "0x4261ab7a7a6b0c751a5cc65003b2ca883e99486f91d9ee150ff7e3fec136f82e"
+      },
+      {
+        "marketId": 1468,
+        "outcome": "A",
+        "amount": 1,
+        "type": "standard",
+        "placedAt": "2026-05-30T12:24:08.829Z",
+        "txHash": "0x14aeb94b600e8cdf7978278495d47b4f62000b0e0fc66268a8b4c1ed3376d151"
+      },
+      {
+        "marketId": 1468,
+        "outcome": "A",
+        "amount": 1,
+        "type": "standard",
+        "placedAt": "2026-05-30T12:24:26.768Z",
+        "txHash": "0x33d6f229b9eeab7abb9dc5dd07d47b06f53e1c98f0bc6e357909365e03d67373"
+      },
+      {
+        "marketId": 1468,
+        "outcome": "A",
+        "amount": 1,
+        "type": "standard",
+        "placedAt": "2026-05-30T12:24:41.807Z",
+        "txHash": "0x9774f26a08ab100adea34a27e9e526245a27ee6c8ef151af0a75267263a1719b"
+      },
+      {
+        "marketId": 1468,
+        "outcome": "A",
+        "amount": 1,
+        "type": "standard",
+        "placedAt": "2026-05-30T12:24:54.415Z",
+        "txHash": "0x4e95307b7c51f46da15c1cc5b888c36355999e42bd96258387d8a83ab5508803"
+      }
+    ]
+  },
+  "kGgdXeZ797aLRFKQ24hLz47DP2CWGLnbt4D5Q6BKvQN1FcvBd": {
+    "bets": [
+      {
+        "marketId": 1491,
+        "outcome": "A",
+        "amount": 5,
+        "type": "standard",
+        "placedAt": "2026-05-30T14:36:58.529Z",
+        "txHash": "0x43016e45153be3364017107a33ad3d72f3af05b9996dfec234ac6a929c8f0016"
+      }
+    ]
+  },
+  "kGkvxU6Pkrd3B1MotnxfACpm9y75pFYUr1n18jmrw3LEu2VQc": {
+    "bets": [
+      {
+        "marketId": 1491,
+        "outcome": "A",
+        "amount": 1.5,
+        "type": "standard",
+        "question": "Will Platforma Reupblicana “Nô Kumpu Guiné” win the most seats in the 2025 Guinea-Bissau National People’s Assembly election?",
+        "outcome_a": "Yes",
+        "outcome_b": "No",
+        "placedAt": "2026-05-30T14:43:55.902Z",
+        "txHash": "0xe628951e63d817b686f0bcbc38a684ee0141e094c2a29f184224c850de97a1f0"
+      }
+    ]
+  }
+}

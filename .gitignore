@@ -1,6 +1,5 @@
 node_modules/
 .env
-funded.json
 sessions.json
 *.log
 
@@ -24,7 +23,6 @@ prov.idl
 vara_theme.css
 
 # Runtime output / error logs
-bets.json
 outreach.err
 server.err
 server2.err

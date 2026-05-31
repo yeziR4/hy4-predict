@@ -369,7 +369,7 @@
       <div class="market-card" data-market-id="${m.id}">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap">
           <span class="market-status status-${isOpen ? 'open' : isResolving ? 'resolving' : 'resolved'}">
-            ${isOpen ? '● Open' : isResolving ? '⏳ Resolving' : '✓ Resolved'}
+            ${isOpen ? '&#9679; Open' : isResolving ? '&#8987; Resolving' : '&#10003; Resolved'}
           </span>
           <div style="display:flex;gap:.4rem;align-items:center">
             ${catBadge}${closingBadge}
