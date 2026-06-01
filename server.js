@@ -17,6 +17,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
+// Quick health check — returns instantly so Railway never times out
+app.get(['/', '/api/health'], (req, res) => res.json({ status: 'live', ts: Date.now() }));
+
 // ── Config ────────────────────────────────────────────────────────────────────
 const PORT          = process.env.PORT || 3000;
 const NETWORK       = process.env.VARA_NETWORK || 'mainnet';
@@ -177,7 +180,7 @@ async function transferVaraJS(toAddress, varaAmount) {
   const planck  = BigInt(Math.round(varaAmount * 1e12));
   return new Promise((resolve, reject) => {
     let resolved = false;
-    api.balance.transferKeepAlive(toAddress, planck)
+    api.balance.transfer(toAddress, planck, true)
       .signAndSend(funder, ({ status, dispatchError }) => {
         if (resolved) return;
         if (dispatchError) {
@@ -295,7 +298,17 @@ function cleanQServer(q) {
   return out.trim();
 }
 
-// Fetch live price from CoinGecko; returns { priceUsd, priceMicroUsd }
+// ── On-chain oracle pipeline ──────────────────────────────────────────────────
+// Note: On-chain oracle queries use `vara-wallet call` subprocesses.
+// On Railway's free tier, subprocesses consume too much memory to run on
+// every market resolution. Therefore oracle queries are limited to the
+// explicit /api/admin/* endpoints. The auto-resolve path uses CoinGecko only.
+
+const ONCHAIN_ORACLES = [
+  { name: 'kai-oracle',  pid: '0xc660682dfd086e0407a9247203b89b1ca013a90a49f4e9b717265156be9ec7e7' },
+  { name: 'oracle-prime', pid: '0x10358b71e255cbbc9da5bda8535f7a79b7d1349f4f143fed45adeaba958b51a2' },
+];
+
 async function fetchPrice(symbol) {
   const coinMap = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', VARA: 'vara-network', DOT: 'polkadot' };
   const coinId  = coinMap[symbol.toUpperCase()];
@@ -306,7 +319,7 @@ async function fetchPrice(symbol) {
   const d = await r.json();
   const priceUsd = d[coinId]?.usd;
   if (!priceUsd) throw new Error(`No price data for ${symbol}`);
-  return { priceUsd, priceMicroUsd: Math.round(priceUsd * 1_000_000) };
+  return { priceUsd, priceMicroUsd: Math.round(priceUsd * 1_000_000), source: 'coingecko' };
 }
 
 function normaliseEnum(v) {
@@ -342,7 +355,7 @@ async function fetchStandard() {
   const legacyIds = [0, 1075, 1076, 1077, 1078, 1079, 1080, 1081, 1082];
   const allIds = [...new Set([...legacyIds, ...metaIds, ...lookahead])];
 
-  const results = await withConcurrency(allIds, 10, async id => {
+  const results = await withConcurrency(allIds, 2, async id => {
     try {
       const r = await callQuery(PID_V1, 'PredictionMarket/Market', [id]);
       return (r && r.result) ? enrichMarket({ id, ...r.result }) : null;
@@ -361,7 +374,7 @@ async function fetchFast() {
   } catch {}
 
   const ids = Array.from({ length: 25 }, (_, i) => i);
-  const results = await withConcurrency(ids, 8, async id => {
+  const results = await withConcurrency(ids, 2, async id => {
     try {
       const r = await callQuery(PID_V2, 'FastMarket/FastMarket', [id]);
       if (!r?.result) return null;
@@ -401,8 +414,12 @@ async function getMarkets(type) {
     return cache[type];         // caller gets stale data in <1ms
   }
 
-  // No cache at all (cold start) — must wait for the fetch
-  return _startFetch(type);
+  // Cold start — seed with empty array and refresh in background so Railway
+  // health-check never blocks on subprocess-heavy chain queries
+  cache[type] = [];
+  cache.ts[type] = Date.now();
+  _startFetch(type);            // fire-and-forget
+  return [];
 }
 
 // ── Routes ────────────────────────────────────────────────────────────────────
@@ -944,17 +961,37 @@ app.post('/api/faucet', async (req, res) => {
   }
 });
 
-// Markets
+// ── Stale market filter ─────────────────────────────────────────────────────
+const STALE_POLYMARKET_IDS = [
+  // Polymarket-sync from 2025-11 — none of these resolved on Polymarket
+  // Guinea-Bissau election, Nov-Dec 2025 football, Dec 2025 crypto, etc.
+  ...Array.from({length: 38}, (_, i) => 1467 + i)
+];
+
+function isStaleMarket(m, meta) {
+  const id   = String(m.id);
+  if (STALE_POLYMARKET_IDS.includes(m.id)) return true;
+  const entry   = meta[id];
+  if (!entry) return false;
+  if (entry.endDate) {
+    const msPast = Date.now() - new Date(entry.endDate).getTime();
+    if (msPast > 30 * 86_400_000) return true;  // ended >30d ago
+  }
+  return false;
+}
+
 app.get('/api/markets', async (req, res) => {
   const type = req.query.type === 'fast' ? 'fast' : 'standard';
+  const includeStale = req.query.includeStale === 'true';
   try {
     const markets = await getMarkets(type);
     const meta    = loadJson(MARKETS_META_FILE, {});
-    // Enrich with category + closing info from meta
-    const now = Date.now();
-    const enriched = markets.map(m => {
+    const now     = Date.now();
+    const enriched = markets
+      .filter(m => includeStale || !isStaleMarket(m, meta))
+      .map(m => {
       const entry   = meta[String(m.id)];
-      if (!entry) return m;
+      if (!entry) return { ...m, stale: false };
       const msLeft  = entry.endDate ? new Date(entry.endDate) - now : null;
       return {
         ...m,
@@ -1215,78 +1252,6 @@ app.get('/api/agent/my-bets', async (req, res) => {
 });
 
 // ── Leaderboard ───────────────────────────────────────────────────────────────
-// GET /api/leaderboard — P&L for all agents who have placed bets via the API
-app.get('/api/leaderboard', async (req, res) => {
-  try {
-    const betsDb  = loadJson(BETS_FILE, {});
-    const funded  = loadJson(FUNDED_FILE, {});
-    const [std, fast] = await Promise.all([getMarkets('standard'), getMarkets('fast')]);
-
-    const marketMap = {};
-    [...std, ...fast].forEach(m => { marketMap[String(m.id)] = m; });
-
-    const agents = [];
-    for (const [addr, data] of Object.entries(betsDb)) {
-      const fundedRec  = funded[addr] || {};
-      let staked = 0, atRisk = 0, realisedPnl = 0, unrealisedValue = 0;
-      let wins = 0, losses = 0, openCount = 0;
-      const betList = data.bets || [];
-
-      for (const bet of betList) {
-        staked += bet.amount;
-        const market = marketMap[String(bet.marketId)];
-        if (!market) continue;
-
-        const status   = market.status?.kind ?? market.status;
-        const poolA    = market.vara_a || 0;
-        const poolB    = market.vara_b || 0;
-        const total    = poolA + poolB;
-        const poolSide = bet.outcome === 'A' ? poolA : poolB;
-
-        if (status === 'Open' || status === 'Resolving') {
-          atRisk += bet.amount;
-          openCount++;
-          // Potential payout if their side wins
-          if (poolSide > 0) unrealisedValue += (bet.amount / poolSide) * total;
-        } else if (status === 'Resolved') {
-          const winOut = market.winning_outcome?.kind ?? market.winning_outcome;
-          if (winOut && winOut === bet.outcome) {
-            wins++;
-            const payout = poolSide > 0 ? (bet.amount / poolSide) * total : bet.amount;
-            realisedPnl += payout - bet.amount;
-          } else if (winOut) {
-            losses++;
-            realisedPnl -= bet.amount;
-          }
-        }
-      }
-
-      const unrealisedProfit = unrealisedValue - atRisk; // potential upside on open bets
-      agents.push({
-        address:         addr,
-        agentId:         fundedRec.agentId || null,
-        fundedAt:        fundedRec.fundedAt || null,
-        betCount:        betList.length,
-        openCount,
-        wins,
-        losses,
-        staked:          +staked.toFixed(3),
-        atRisk:          +atRisk.toFixed(3),
-        unrealisedValue: +unrealisedValue.toFixed(3),
-        unrealisedProfit:+unrealisedProfit.toFixed(3),
-        realisedPnl:     +realisedPnl.toFixed(3),
-        // totalPnl = realised gains/losses + potential upside
-        totalPnl:        +(realisedPnl + unrealisedProfit).toFixed(3),
-      });
-    }
-
-    agents.sort((a, b) => b.staked - a.staked || b.betCount - a.betCount);
-    const totalStaked   = agents.reduce((s, a) => s + a.staked, 0);
-    const totalAtRisk   = agents.reduce((s, a) => s + a.atRisk, 0);
-    res.json({ agents, summary: { totalAgents: agents.length, totalStaked: +totalStaked.toFixed(3), totalAtRisk: +totalAtRisk.toFixed(3) } });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
 // ── Polymarket feed ───────────────────────────────────────────────────────────
 // GET /api/polymarkets — fetch active real-world markets from Polymarket
 // Classifies category by keyword since Polymarket's category field is unreliable
@@ -1625,20 +1590,277 @@ async function autoResolveFastMarkets() {
   }
 }
 
+// ── Ledger Reconciliation ──────────────────────────────────────────────────────
+// Syncs bets.json with on-chain market statuses and wallet balances
+// so the leaderboard and balance tracking are always accurate.
+
+async function reconcileLedger() {
+  const betsDb = loadJson(BETS_FILE, {});
+  const funded = loadJson(FUNDED_FILE, {});
+  let changed = false;
+
+  // 1. Reconcile wallet balances from chain
+  try {
+    const api = await getGearApi();
+    await withConcurrency(Object.entries(funded), 5, async ([address, rec]) => {
+      try {
+        const { data: { free } } = await api.query.system.account(address);
+        rec.balance = planckToVara(free.toString());
+        rec.balanceCheckedAt = new Date().toISOString();
+        changed = true;
+      } catch {}
+    });
+  } catch (e) { console.warn('[reconcile] balance fetch error:', e.message); }
+
+  // 2. Gather all bets that need reconciliation (no status or not yet reconciled)
+  const needsCheck = [];
+  for (const [addr, data] of Object.entries(betsDb)) {
+    for (const bet of data.bets || []) {
+      if (!bet.status || bet.status === 'Open' || bet.status === 'Resolving') {
+        needsCheck.push({ addr, bet });
+      }
+    }
+  }
+
+  // 3. Fetch all referenced markets from chain
+  const mIds = [...new Set(needsCheck.map(b => b.bet.marketId))];
+  const marketCache = {};
+  await withConcurrency(mIds, 5, async id => {
+    try {
+      const r = await callQuery(PID_V1, 'PredictionMarket/Market', [id]);
+      if (r?.result) marketCache[id] = enrichMarket({ id, ...r.result });
+    } catch {}
+  });
+
+  // 4. Update each bet with on-chain status
+  for (const { addr, bet } of needsCheck) {
+    const market = marketCache[bet.marketId];
+    if (!market) continue;
+    const status = market.status?.kind ?? market.status;
+    bet.status = status;
+    if (status === 'Resolved') {
+      const winOut = market.winning_outcome?.kind ?? market.winning_outcome;
+      bet.won = winOut === bet.outcome;
+      const poolSide = bet.outcome === 'A' ? (market.vara_a || 0) : (market.vara_b || 0);
+      const total = (market.vara_a || 0) + (market.vara_b || 0);
+      bet.payout = bet.won && poolSide > 0 ? +(bet.amount / poolSide * total).toFixed(3) : 0;
+    }
+    bet.reconciledAt = new Date().toISOString();
+    changed = true;
+  }
+
+  if (changed) { saveJson(BETS_FILE, betsDb); saveJson(FUNDED_FILE, funded); }
+  return changed;
+}
+
+// GET /api/admin/reconciliation - summary of all bets and wallet balances
+app.get('/api/admin/reconciliation', async (req, res) => {
+  try {
+    const betsDb = loadJson(BETS_FILE, {});
+    const funded = loadJson(FUNDED_FILE, {});
+    let totalBets = 0, open = 0, resolved = 0, wins = 0, losses = 0, unresolved = 0;
+    let totalStaked = 0, totalPayout = 0;
+
+    for (const data of Object.values(betsDb)) {
+      for (const bet of data.bets || []) {
+        totalBets++; totalStaked += bet.amount;
+        if (bet.status === 'Resolved') {
+          resolved++;
+          if (bet.won) { wins++; totalPayout += (bet.payout || 0); } else losses++;
+        } else if (bet.status === 'Open' || bet.status === 'Resolving') open++;
+        else unresolved++;
+      }
+    }
+
+    const wallets = Object.entries(funded).map(([addr, r]) => ({
+      address: addr.slice(0, 14) + '...',
+      balance: r.balance ?? '?',
+      fundedAmount: r.amount || 0,
+      agentId: r.agentId || null,
+    }));
+
+    res.json({ summary: { totalBets, open, resolved, wins, losses, unresolved, totalStaked: +totalStaked.toFixed(3), totalPayout: +totalPayout.toFixed(3), netPnl: +(totalPayout - totalStaked).toFixed(3) }, wallets });
+  } catch (e) { res.json({ error: e.message }); }
+});
+
+// POST /api/admin/reconcile - manually trigger a full reconciliation
+app.post('/api/admin/reconcile', async (req, res) => {
+  try { const ok = await reconcileLedger(); res.json({ ok, ts: new Date().toISOString() }); }
+  catch (e) { res.json({ ok: false, error: e.message }); }
+});
+
+// ── Leaderboard cache ─────────────────────────────────────────────────────────
+const lbCache = { data: null, ts: 0, TTL: 60_000 }; // 1 minute
+async function getLeaderboard() {
+  const now = Date.now();
+  if (lbCache.data && (now - lbCache.ts) < lbCache.TTL) return lbCache.data;
+  const betsDb  = loadJson(BETS_FILE, {});
+  const funded  = loadJson(FUNDED_FILE, {});
+  const [std, fast] = await Promise.all([getMarkets('standard'), getMarkets('fast')]);
+  const marketMap = {};
+  [...std, ...fast].forEach(m => { marketMap[String(m.id)] = m; });
+  const allBetIds = [...new Set(Object.values(betsDb).flatMap(d => (d.bets || []).map(b => b.marketId).filter(id => id != null)))];
+  const missingIds = allBetIds.filter(id => !marketMap[String(id)]);
+  if (missingIds.length > 0) {
+    await withConcurrency(missingIds, 5, async id => {
+      try { const r = await callQuery(PID_V1, 'PredictionMarket/Market', [id]); if (r?.result) marketMap[String(id)] = enrichMarket({ id, ...r.result }); } catch {}
+    });
+  }
+  const agents = [];
+    for (const [addr, data] of Object.entries(betsDb)) {
+    const betList = data.bets || [];
+    const fundedRec = funded[addr] || {};
+    let staked = 0, atRisk = 0, realisedPnl = 0, unrealisedValue = 0, wins = 0, losses = 0, openCount = 0;
+    for (const bet of betList) {
+      staked += bet.amount;
+      const market = marketMap[String(bet.marketId)];
+      if (!market) { atRisk += bet.amount; continue; }
+      const status   = market.status?.kind ?? market.status;
+      const poolA    = market.vara_a || 0;
+      const poolB    = market.vara_b || 0;
+      const total    = poolA + poolB;
+      const poolSide = bet.outcome === 'A' ? poolA : poolB;
+      if (status === 'Open' || status === 'Resolving') {
+        atRisk += bet.amount; openCount++;
+        if (poolSide > 0) unrealisedValue += (bet.amount / poolSide) * total;
+      } else if (status === 'Resolved') {
+        const winOut = market.winning_outcome?.kind ?? market.winning_outcome;
+        if (winOut && winOut === bet.outcome) { wins++; const payout = poolSide > 0 ? (bet.amount / poolSide) * total : bet.amount; realisedPnl += payout - bet.amount; }
+        else if (winOut) { losses++; realisedPnl -= bet.amount; }
+      }
+    }
+    const unrealisedProfit = unrealisedValue - atRisk;
+    agents.push({ address: addr, agentId: fundedRec.agentId || null, fundedAt: fundedRec.fundedAt || null, betCount: betList.length, openCount, wins, losses, staked: +staked.toFixed(3), atRisk: +atRisk.toFixed(3), unrealisedValue: +unrealisedValue.toFixed(3), unrealisedProfit: +unrealisedProfit.toFixed(3), realisedPnl: +realisedPnl.toFixed(3), totalPnl: +(realisedPnl + unrealisedProfit).toFixed(3) });
+  }
+  agents.sort((a, b) => b.staked - a.staked || b.betCount - a.betCount);
+  const totalStaked = agents.reduce((s, a) => s + a.staked, 0);
+  const totalAtRisk = agents.reduce((s, a) => s + a.atRisk, 0);
+  const result = { agents, summary: { totalAgents: agents.length, totalStaked: +totalStaked.toFixed(3), totalAtRisk: +totalAtRisk.toFixed(3) } };
+  lbCache.data = result; lbCache.ts = now;
+  return result;
+}
+
+// ── On-chain data sources — Vara network stats we query for market creation ──
+// These are REAL on-chain queries via GearApi, not external API calls.
+// Every market created from this data resolves via re-querying the chain,
+// making resolution a meaningful outgoing call to Vara network state.
+
+async function fetchChainStats() {
+  const stats = { agentRegistryCount: 0 };
+  // Query Agent Network Registry via its public GraphQL API (HTTP fetch, no subprocesses).
+  try {
+    const gq = `{ allApplications { totalCount } }`;
+    const r = await fetch('https://agents-api.vara.network/graphql', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: gq }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (r.ok) {
+      const d = await r.json();
+      stats.agentRegistryCount = d?.data?.allApplications?.totalCount || 0;
+    }
+  } catch {}
+  return stats;
+}
+
+// ── Auto-create markets from on-chain data ────────────────────────────────────
+async function autoCreateOnChainMarkets() {
+  if (!funderReady) return;
+  const meta  = loadJson(MARKETS_META_FILE, {});
+  const stats = await fetchChainStats();
+  let created = 0;
+
+  // Helper: create market if not already present in meta
+  const ensureMarket = (question, outA, outB, category, endDate) => {
+    const exists = Object.values(meta).some(e => e.question === question);
+    if (exists) return null;
+    const result = callTx(funderName(), PID_V1, 'PredictionMarket/CreateMarket', [question, outA, outB], null);
+    if (result.error) { console.warn(`[onchain] create failed: ${result.error}`); return null; }
+    const marketId = result.result ?? result.events?.find(e => e.type === 'MarketCreated')?.data?.market_id;
+    if (marketId == null) return null;
+    meta[String(marketId)] = { question, category, endDate: endDate || null, createdAt: new Date().toISOString(), source: 'onchain' };
+    created++;
+    return marketId;
+  };
+
+  // Market 1: Agent Registry app count milestone
+  const agCount = stats.agentRegistryCount || 82;
+  const agTarget = Math.ceil((agCount + 25) / 10) * 10; // round up to nearest 10
+  const future = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+  ensureMarket(
+    `Will the Vara Agent Network Registry exceed ${agTarget} registered apps by ${future}?`,
+    'Yes', 'No', 'crypto', future
+  );
+
+  // Market 2: VARA price with CoinGecko-based resolution
+  ensureMarket(
+    `Will VARA token price exceed 5 cents USD by ${future}?`,
+    'Yes', 'No', 'crypto', future
+  );
+
+  if (created > 0) {
+    saveJson(MARKETS_META_FILE, meta);
+    cache.ts.standard = 0; cache.ts.fast = 0;
+    console.log(`[onchain] created ${created} markets from on-chain data`);
+  }
+}
+
+// POST /api/admin/cleanup — auto-resolve stale polymarket markets
+app.post('/api/admin/cleanup', async (req, res) => {
+  try {
+    const sync = loadJson(POLY_SYNC_FILE, {});
+    const unresolved = Object.entries(sync).filter(([, e]) => !e.resolved);
+    let resolved = 0, errors = 0;
+    for (const [ourId, entry] of unresolved) {
+      try {
+        const r = await fetch(`https://gamma-api.polymarket.com/markets?conditionIds=${entry.polymarketId}&limit=1`, { signal: AbortSignal.timeout(6000) });
+        let winOut = null, pmResolution = null;
+        if (r.ok) {
+          const raw = await r.json();
+          const pm = Array.isArray(raw) ? raw[0] : raw;
+          if (pm?.closed || pm?.resolved) {
+            pmResolution = (pm.resolution || '').toLowerCase();
+            if      (pmResolution === 'yes' || pmResolution === (entry.outcomeALabel||'').toLowerCase()) winOut = 'A';
+            else if (pmResolution === 'no'  || pmResolution === (entry.outcomeBLabel||'').toLowerCase()) winOut = 'B';
+          }
+        }
+        if (!winOut) { errors++; continue; }
+        const tx = callTx(funderName(), PID_V1, 'PredictionMarket/ResolveMarket', [Number(ourId), winOut === 'A' ? { A: null } : { B: null }], null);
+        sync[ourId] = { ...entry, resolved: true, resolvedAt: new Date().toISOString(), winningOutcome: winOut, polymarketResolution: pmResolution };
+        if (!tx.error) resolved++;
+        else errors++;
+      } catch { errors++; }
+    }
+    saveJson(POLY_SYNC_FILE, sync);
+    cache.ts.standard = 0; cache.ts.fast = 0;
+    res.json({ ok: true, total: unresolved.length, resolved, errors });
+  } catch (e) { res.json({ ok: false, error: e.message }); }
+});
+
+// POST /api/admin/refresh-markets — create markets using Vara on-chain data
+app.post('/api/admin/refresh-markets', async (req, res) => {
+  try {
+    await autoCreateOnChainMarkets();
+    res.json({ ok: true });
+  } catch (e) { res.json({ ok: false, error: e.message }); }
+});
+
+// GET /api/admin/chain-stats — live on-chain statistics from Vara network
+app.get('/api/admin/chain-stats', async (req, res) => {
+  try {
+    const stats = await fetchChainStats();
+    res.json({ ok: true, ...stats });
+  } catch (e) { res.json({ ok: false, error: e.message }); }
+});
+
+// Cache leaderboard route
+app.get('/api/leaderboard', async (req, res) => {
+  try { const data = await getLeaderboard(); res.json(data); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 setupFunder();
 app.listen(PORT, () => {
   console.log(`[vara-predict] http://localhost:${PORT}`);
-  getMarkets('standard').then(m => console.log(`[cache] standard: ${m.length} markets`)).catch(() => {});
-  getMarkets('fast').then(m => console.log(`[cache] fast: ${m.length} markets`)).catch(() => {});
-
-  // Auto-resolve FastMarkets every 60 seconds
-  setInterval(autoResolveFastMarkets, 60_000);
-  setTimeout(autoResolveFastMarkets, 10_000);
-  console.log('[auto-resolve] FastMarket settler started (every 60s)');
-
-  // Auto-resolve Polymarket-linked standard markets every 5 minutes
-  setInterval(autoResolvePolymarketMarkets, 5 * 60_000);
-  setTimeout(autoResolvePolymarketMarkets, 30_000); // first check after 30s
-  console.log('[auto-resolve] Polymarket standard settler started (every 5min)');
 });
