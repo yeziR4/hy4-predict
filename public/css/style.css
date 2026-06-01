@@ -205,7 +205,7 @@ nav {
 }
 .outcome-btn:hover { border-color: var(--primary); background: oklch(82% .21 145 / .08); }
 .outcome-btn.selected { border-color: var(--primary); background: oklch(82% .21 145 / .15); }
-.outcome-label { font-size: .8rem; font-weight: 600; margin-bottom: .2rem; }
+.outcome-label { font-size: .8rem; font-weight: 600; margin-bottom: .2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .outcome-pct { font-size: 1.1rem; font-weight: 700; }
 .outcome-vara { font-size: .7rem; color: var(--muted); }
 

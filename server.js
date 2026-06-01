@@ -9,6 +9,9 @@ const fs   = require('fs');
 const os   = require('os');
 const path = require('path');
 
+// Pure-JS Vara crypto — no subprocess needed for wallet generation or transfers
+const { GearApi, GearKeyring } = require('@gear-js/api');
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -145,6 +148,50 @@ function callQuery(pid, method, args) {
 function callTx(account, pid, method, args, value) {
   const extra = value ? ['--value', String(value)] : [];
   return vwSync(['--account', account, 'call', pid, method, '--args', JSON.stringify(args), '--idl', IDL_PATH, ...extra], { ignoreError: true });
+}
+
+// ── Pure-JS wallet helpers (GearApi — no subprocess) ─────────────────────────
+// Used for wallet generation and VARA transfers, replacing vara-wallet spawn calls
+// which are too memory-intensive on Railway's free tier.
+
+let _gearApi = null;
+async function getGearApi() {
+  if (_gearApi && _gearApi.isConnected) return _gearApi;
+  _gearApi = await GearApi.create({ providerAddress: 'wss://rpc.vara.network' });
+  return _gearApi;
+}
+
+// Generate a fresh Vara wallet — pure JS, no subprocess
+async function generateVaraWallet() {
+  const mnemonic = bip39.generateMnemonic();
+  const keyring  = await GearKeyring.fromMnemonic(mnemonic);
+  return { mnemonic, address: keyring.address };
+}
+
+// Transfer VARA using GearApi — no subprocess
+async function transferVaraJS(toAddress, varaAmount) {
+  const api     = await getGearApi();
+  const rawJson = Buffer.from(FUNDER_JSON, 'base64').toString('utf8');
+  const funder  = GearKeyring.fromJson(rawJson);
+  funder.decodePkcs8();                              // unencrypted wallet
+  const planck  = BigInt(Math.round(varaAmount * 1e12));
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+    api.balance.transferKeepAlive(toAddress, planck)
+      .signAndSend(funder, ({ status, dispatchError }) => {
+        if (resolved) return;
+        if (dispatchError) {
+          resolved = true;
+          reject(new Error(dispatchError.isModule
+            ? api.registry.findMetaError(dispatchError.asModule).docs.join(' ')
+            : dispatchError.toString()));
+        }
+        if (status.isInBlock) {
+          resolved = true;
+          resolve({ txHash: status.asInBlock.toString() });
+        }
+      });
+  });
 }
 
 // ── Funder wallet setup ───────────────────────────────────────────────────────
@@ -864,24 +911,18 @@ Full docs: /agent-docs
 `);
 });
 
-// Generate fresh keypair
-app.post('/api/new-wallet', (req, res) => {
+// Generate fresh keypair — pure JS via GearKeyring, no subprocess
+app.post('/api/new-wallet', async (req, res) => {
   try {
-    const mnemonic = bip39.generateMnemonic();
-    // Import into vara-wallet to get the SS58 address, then we have it
-    const tmpName = 'hy4web_' + Date.now();
-    const argv = [NODE, VW_SCRIPT, 'wallet', 'import', '--name', tmpName, '--mnemonic', mnemonic].map(String);
-    const cmd = argv.map(a => /[\s]/.test(a) ? `"${a}"` : a).join(' ');
-    const out = execSync(cmd, { timeout: 30_000, stdio: ['pipe', 'pipe', 'pipe'], env: CHILD_ENV });
-    const data = JSON.parse(out.toString().trim());
-    res.json({ mnemonic, address: data.address || data.address });
+    const { mnemonic, address } = await generateVaraWallet();
+    res.json({ mnemonic, address });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// Faucet
-app.post('/api/faucet', (req, res) => {
+// Faucet — uses GearApi (pure JS, no subprocess)
+app.post('/api/faucet', async (req, res) => {
   const { address } = req.body;
   if (!address) return res.status(400).json({ error: 'address required' });
 
@@ -891,11 +932,10 @@ app.post('/api/faucet', (req, res) => {
     fundedAt: funded[address].fundedAt
   });
 
-  if (!funderReady) return res.status(503).json({ error: 'Faucet not ready' });
+  if (!FUNDER_JSON) return res.status(503).json({ error: 'Faucet not configured (FUNDER_WALLET_JSON missing)' });
 
   try {
-    const result = vwAs(funderName(), ['transfer', address, String(FAUCET_VARA)], { ignoreError: true });
-    if (result.error) throw new Error(result.error);
+    const result = await transferVaraJS(address, FAUCET_VARA);
     funded[address] = { fundedAt: new Date().toISOString(), txHash: result.txHash, amount: FAUCET_VARA };
     saveJson(FUNDED_FILE, funded);
     res.json({ success: true, amount: FAUCET_VARA, address, txHash: result.txHash });
