@@ -1082,26 +1082,25 @@ app.post('/api/bet', (req, res) => {
 
     // Track bet so it shows up in agent profile / leaderboard
     try {
-      const userAddr = _ipSession[getClientIp(req)]?.address || null;
-      if (userAddr) {
-        const cachedAll = [...(cache.standard || []), ...(cache.fast || [])];
-        const betMarket = cachedAll.find(m => m.id === Number(marketId));
-        const outLetter = outcome === 'A' ? 'A' : 'B';
-        const betsDb = loadJson(BETS_FILE, {});
-        if (!betsDb[userAddr]) betsDb[userAddr] = { bets: [] };
-        betsDb[userAddr].bets.push({
-          marketId:  Number(marketId),
-          outcome:   outLetter,
-          amount:    parseFloat(amount),
-          type:      isFast ? 'fast' : 'standard',
-          question:  betMarket ? cleanQServer(betMarket.question) : null,
-          outcome_a: betMarket?.outcome_a || null,
-          outcome_b: betMarket?.outcome_b || null,
-          placedAt:  new Date().toISOString(),
-          txHash:    result.txHash,
-        });
-        saveJson(BETS_FILE, betsDb);
-      }
+      const pair = await GearKeyring.fromMnemonic(mnemonic);
+      const userAddr = pair.address;
+      const cachedAll = [...(cache.standard || []), ...(cache.fast || [])];
+      const betMarket = cachedAll.find(m => m.id === Number(marketId));
+      const outLetter = outcome === 'A' ? 'A' : 'B';
+      const betsDb = loadJson(BETS_FILE, {});
+      if (!betsDb[userAddr]) betsDb[userAddr] = { bets: [] };
+      betsDb[userAddr].bets.push({
+        marketId:  Number(marketId),
+        outcome:   outLetter,
+        amount:    parseFloat(amount),
+        type:      isFast ? 'fast' : 'standard',
+        question:  betMarket ? cleanQServer(betMarket.question) : null,
+        outcome_a: betMarket?.outcome_a || null,
+        outcome_b: betMarket?.outcome_b || null,
+        placedAt:  new Date().toISOString(),
+        txHash:    result.txHash,
+      });
+      saveJson(BETS_FILE, betsDb);
     } catch {}
 
     res.json({ success: true, txHash: result.txHash });
