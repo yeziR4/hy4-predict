@@ -158,10 +158,26 @@ function callTx(account, pid, method, args, value) {
 // which are too memory-intensive on Railway's free tier.
 
 let _gearApi = null;
+let funderAddress = null;
 async function getGearApi() {
   if (_gearApi && _gearApi.isConnected) return _gearApi;
   _gearApi = await GearApi.create({ providerAddress: 'wss://rpc.vara.network' });
   return _gearApi;
+}
+async function checkFunderBalance() {
+  try {
+    const api = await getGearApi();
+    const rawJson = Buffer.from(FUNDER_JSON, 'base64').toString('utf8');
+    const funder = GearKeyring.fromJson(rawJson);
+    funderAddress = funder.address;
+    const bal = await api.balance.findOut(funder.address);
+    const vara = Number(bal.toString()) / 1e12;
+    console.log(`[funder] address=${funder.address} balance=${vara.toFixed(4)} VARA`);
+    return vara;
+  } catch (e) {
+    console.error('[funder] balance check failed:', e.message);
+    return 0;
+  }
 }
 
 // Generate a fresh Vara wallet — pure JS, no subprocess
@@ -176,8 +192,15 @@ async function transferVaraJS(toAddress, varaAmount) {
   const api     = await getGearApi();
   const rawJson = Buffer.from(FUNDER_JSON, 'base64').toString('utf8');
   const funder  = GearKeyring.fromJson(rawJson);
-  funder.decodePkcs8();                              // unencrypted wallet
+  funderAddress = funder.address;
+  // Check funder balance first
+  const bal = await api.balance.findOut(funder.address);
+  const balVara = Number(bal.toString()) / 1e12;
+  if (balVara < varaAmount + 1) {
+    throw new Error(`Funder has ${balVara.toFixed(4)} VARA, needs ${varaAmount + 1}`);
+  }
   const planck  = BigInt(Math.round(varaAmount * 1e12));
+  console.log(`[faucet] sending ${varaAmount} VARA from ${funder.address} to ${toAddress} (balance: ${balVara.toFixed(4)} VARA)`);
   return new Promise((resolve, reject) => {
     let resolved = false;
     api.balance.transfer(toAddress, planck, true)
@@ -191,7 +214,9 @@ async function transferVaraJS(toAddress, varaAmount) {
         }
         if (status.isInBlock) {
           resolved = true;
-          resolve({ txHash: status.asInBlock.toString() });
+          const blockHash = status.asInBlock.toString();
+          console.log(`[faucet] tx in block ${blockHash} — ${varaAmount} VARA → ${toAddress}`);
+          resolve({ txHash: blockHash });
         }
       });
   });
@@ -1863,4 +1888,5 @@ app.get('/api/leaderboard', async (req, res) => {
 setupFunder();
 app.listen(PORT, () => {
   console.log(`[vara-predict] http://localhost:${PORT}`);
+  if (FUNDER_JSON) checkFunderBalance();  // log funder address + balance
 });
