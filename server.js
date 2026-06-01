@@ -1049,7 +1049,7 @@ app.get('/api/stats', async (req, res) => {
 });
 
 // Place bet (user provides mnemonic — imported as temp wallet, then deleted after)
-app.post('/api/bet', (req, res) => {
+app.post('/api/bet', async (req, res) => {
   const { mnemonic, marketId, outcome, amount, type } = req.body;
   if (!mnemonic || marketId == null || !outcome || !amount) {
     return res.status(400).json({ error: 'mnemonic, marketId, outcome, amount required' });
