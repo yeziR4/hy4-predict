@@ -30,5 +30,14 @@ server2.err
 # Misc
 ~/
 
+# Temp files
+_betargs.json
+_mktargs.json
+_res.json
+mkt1.json
+resolve-direct.cjs
+resolve-market.mjs
+hy4-predict/
+
 # funded mnemonics
 funded.json
