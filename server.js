@@ -530,6 +530,9 @@ app.get('/api/agent/markets', async (req, res) => {
         if (meta[String(m.id)]?.hidden) return false;
         // When we have synced markets, only show those (keeps the list clean)
         if (hasMeta && !meta[String(m.id)]) return false;
+        // Skip markets with endDate more than 1 day in the past (stale Polymarket clones)
+        const endDate = meta[String(m.id)]?.endDate;
+        if (endDate && (new Date(endDate).getTime() + 86_400_000 < now)) return false;
         return true;
       })
       .map(m => {
@@ -760,9 +763,13 @@ app.post('/api/agent/bet', async (req, res) => {
 
 // POST /api/agent/fast-bet — fetch live price, create fast market, place bet (one call)
 app.post('/api/agent/fast-bet', async (req, res) => {
-  const { mnemonic, symbol = 'BTC', direction } = req.body;
+  let { mnemonic, address, symbol = 'BTC', direction } = req.body;
+  if (address && !mnemonic) {
+    const rec = loadJson(FUNDED_FILE, {})[address];
+    if (rec?.mnemonic) mnemonic = rec.mnemonic;
+  }
   if (!mnemonic || !direction) {
-    return res.status(400).json({ error: 'Required: mnemonic, symbol (BTC/ETH/SOL), direction ("higher"/"lower")' });
+    return res.status(400).json({ error: 'Required: mnemonic (or registered address), symbol (BTC/ETH/SOL/DOT/VARA), direction ("higher"/"lower")' });
   }
   const dir = direction.toLowerCase();
   if (!['higher', 'lower'].includes(dir)) {
