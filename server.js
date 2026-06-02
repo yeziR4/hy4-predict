@@ -522,6 +522,7 @@ app.get('/api/agent/markets', async (req, res) => {
     try {
       const minVol  = Number(req.query.min_volume) || 1000;
       const limit   = Math.min(Number(req.query.limit) || 10, 50);
+      const cat     = req.query.category;
       const nowTs   = Math.floor(Date.now() / 1000);
       const results = await fetchFalconMarkets({
         closed: false, minVolume: minVol, limit: limit * 2,
@@ -529,7 +530,15 @@ app.get('/api/agent/markets', async (req, res) => {
       });
       const now     = Date.now();
       const mapped  = results
-        .filter(m => !m.closed)
+        .filter(m => {
+          if (cat) {
+            const c = classifyQuestion(m.question);
+            if (!c) return false;
+            const catMap = { crypto: 'crypto', sports: 'sports', politics: 'world' };
+            return c === (catMap[cat] || cat);
+          }
+          return true;
+        })
         .slice(0, limit)
         .map((m, i) => {
           const endMs  = m.end_date ? new Date(m.end_date).getTime() : null;
@@ -543,6 +552,10 @@ app.get('/api/agent/markets', async (req, res) => {
             volume:       m.volume_total || 0,
             status:       'open',
             type:         'falcon',
+            pct_a:        50,
+            pct_b:        50,
+            vara_a:       0,
+            vara_b:       0,
             endDate:      m.end_date || null,
             daysLeft:     msLeft != null ? Math.max(0, Math.ceil(msLeft / 86_400_000)) : null,
             hoursLeft:    msLeft != null ? Math.max(0, Math.ceil(msLeft / 3_600_000)) : null,
@@ -1204,12 +1217,67 @@ function isStaleMarket(m, meta) {
 }
 
 app.get('/api/markets', async (req, res) => {
-  // When Falcon API is configured, return live Falcon markets instead of on-chain Vara markets
+  const type = req.query.type || 'standard';
+
+  // Fast markets — CoinGecko-based live crypto price predictions
+  if (type === 'fast') {
+    try {
+      // Fetch live prices from CoinGecko
+      const cg = await fetch(
+        'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd',
+        { signal: AbortSignal.timeout(8_000) }
+      );
+      if (!cg.ok) throw new Error(`CoinGecko ${cg.status}`);
+      const prices = await cg.json();
+      const btc = prices?.bitcoin?.usd;
+      const eth = prices?.ethereum?.usd;
+      const sol = prices?.solana?.usd;
+
+      const fastMarkets = [
+        {
+          id: -101, question: 'Will Bitcoin be higher or lower in 5 minutes?',
+          outcome_a: 'Higher ↑', outcome_b: 'Lower ↓',
+          pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0,
+          status: 'Open', category: 'crypto', source: 'coingecko',
+          symbol: 'BTC', currentPrice: btc || 0, endDate: new Date(Date.now() + 300_000).toISOString(),
+          daysLeft: 0, closingLabel: '5 min',
+        },
+        {
+          id: -102, question: 'Will Ethereum be higher or lower in 5 minutes?',
+          outcome_a: 'Higher ↑', outcome_b: 'Lower ↓',
+          pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0,
+          status: 'Open', category: 'crypto', source: 'coingecko',
+          symbol: 'ETH', currentPrice: eth || 0, endDate: new Date(Date.now() + 300_000).toISOString(),
+          daysLeft: 0, closingLabel: '5 min',
+        },
+        {
+          id: -103, question: 'Will Solana be higher or lower in 5 minutes?',
+          outcome_a: 'Higher ↑', outcome_b: 'Lower ↓',
+          pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0,
+          status: 'Open', category: 'crypto', source: 'coingecko',
+          symbol: 'SOL', currentPrice: sol || 0, endDate: new Date(Date.now() + 300_000).toISOString(),
+          daysLeft: 0, closingLabel: '5 min',
+        },
+      ];
+      return res.json(fastMarkets);
+    } catch (e) {
+      console.warn('[markets] CoinGecko error:', e.message);
+      // Fallback: return static fast markets with placeholder prices
+      return res.json([
+        { id: -101, question: 'Will Bitcoin be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'BTC', currentPrice: null, closingLabel: '5 min' },
+        { id: -102, question: 'Will Ethereum be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'ETH', currentPrice: null, closingLabel: '5 min' },
+        { id: -103, question: 'Will Solana be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'SOL', currentPrice: null, closingLabel: '5 min' },
+      ]);
+    }
+  }
+
+  // Standard markets — Falcon API (Polymarket) or on-chain Vara
   if (FALCON_API_KEY) {
     try {
       const closed  = req.query.closed === 'true';
       const minVol  = Number(req.query.min_volume) || 1000;
       const limit   = Math.min(Number(req.query.limit) || 20, 50);
+      const cat     = req.query.category; // crypto | sports | politics | '' (all)
       const nowTs   = Math.floor(Date.now() / 1000);
       const results = await fetchFalconMarkets({
         closed, minVolume: minVol, limit: limit * 2,
@@ -1217,29 +1285,45 @@ app.get('/api/markets', async (req, res) => {
         endDateMax: closed ? nowTs : nowTs + (7 * 86400),
       });
       const now     = Date.now();
-      const mapped  = results.map((m, i) => {
-        const endMs  = m.end_date ? new Date(m.end_date).getTime() : null;
-        const msLeft = endMs ? endMs - now : null;
-        return {
-          id:            -(i + 1),  // synthetic negative ID (Falcon markets have no on-chain ID)
-          falconId:      m.condition_id || null,
-          question:      m.question || '',
-          outcome_a:     m.side_a_outcome || 'Yes',
-          outcome_b:     m.side_b_outcome || 'No',
-          status:        m.closed ? 'Resolved' : 'Open',
-          category:      classifyQuestion(m.question) || 'general',
-          endDate:       m.end_date || null,
-          volume:        m.volume_total || 0,
-          winningOutcome: m.winning_outcome || null,
-          daysLeft:      msLeft != null ? Math.max(0, Math.ceil(msLeft / 86_400_000)) : null,
-          closingLabel:  msLeft != null
-            ? (Math.ceil(msLeft / 86_400_000) <= 0 ? 'Today'
-               : Math.ceil(msLeft / 86_400_000) === 1 ? 'Tomorrow'
-               : `${Math.ceil(msLeft / 86_400_000)}d left`)
-            : null,
-          source: 'falcon',
-        };
-      });
+      const mapped  = results
+        .filter(m => {
+          if (closed !== !!m.closed) return false;
+          if (cat) {
+            const c = classifyQuestion(m.question);
+            if (!c) return false;
+            // Map our categories to user's desired labels
+            const catMap = { crypto: 'crypto', sports: 'sports', politics: 'world' };
+            return c === (catMap[cat] || cat);
+          }
+          return true;
+        })
+        .map((m, i) => {
+          const endMs  = m.end_date ? new Date(m.end_date).getTime() : null;
+          const msLeft = endMs ? endMs - now : null;
+          return {
+            id:            -(i + 1),
+            falconId:      m.condition_id || null,
+            question:      m.question || '',
+            outcome_a:     m.side_a_outcome || 'Yes',
+            outcome_b:     m.side_b_outcome || 'No',
+            pct_a:         50,
+            pct_b:         50,
+            vara_a:        0,
+            vara_b:        0,
+            status:        'Open',
+            category:      classifyQuestion(m.question) || 'general',
+            endDate:       m.end_date || null,
+            volume:        m.volume_total || 0,
+            winningOutcome: m.winning_outcome || null,
+            daysLeft:      msLeft != null ? Math.max(0, Math.ceil(msLeft / 86_400_000)) : null,
+            closingLabel:  msLeft != null
+              ? (Math.ceil(msLeft / 86_400_000) <= 0 ? 'Today'
+                 : Math.ceil(msLeft / 86_400_000) === 1 ? 'Tomorrow'
+                 : `${Math.ceil(msLeft / 86_400_000)}d left`)
+              : null,
+            source: 'falcon',
+          };
+        });
       return res.json(mapped);
     } catch (e) {
       console.warn('[markets] Falcon failed:', e.message);
@@ -1277,6 +1361,19 @@ app.get('/api/markets', async (req, res) => {
 // Stats
 app.get('/api/stats', async (req, res) => {
   try {
+    // When Falcon is configured, count Falcon markets instead
+    if (FALCON_API_KEY) {
+      try {
+        const nowTs = Math.floor(Date.now() / 1000);
+        const results = await fetchFalconMarkets({ closed: false, minVolume: 0, limit: 100, endDateMin: nowTs, endDateMax: nowTs + (365 * 86400) });
+        const open = results.filter(m => !m.closed);
+        return res.json({
+          totalMarkets: open.length,
+          openMarkets: open.length,
+          totalVara: '0.00',
+        });
+      } catch { /* fall through to on-chain */ }
+    }
     const [std, fast] = await Promise.all([getMarkets('standard'), getMarkets('fast')]);
     const all = [...std, ...fast];
     const totalVara = all.reduce((s, m) => s + (m.vara_a || 0) + (m.vara_b || 0), 0);
@@ -2330,7 +2427,7 @@ app.get('/api/leaderboard', async (req, res) => {
 
 // ── Falcon auto-resolve ───────────────────────────────────────────────────────
 // Non-blocking: uses callTxAsync (exec, not execSync) so it doesn't crash Railway.
-const FALCON_RESOLVE_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const FALCON_RESOLVE_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
 async function autoResolveFalconMarkets() {
   if (!FALCON_API_KEY || !funderReady) return;
   try {

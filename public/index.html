@@ -80,6 +80,13 @@
       <h2 style="font-size:1.4rem;font-weight:700">🔥 Live Markets</h2>
       <a href="/markets.html" style="color:var(--primary);font-size:.9rem">View all →</a>
     </div>
+    <div style="margin-bottom:1.5rem">
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap" id="cat-tabs">
+        <button class="tab-btn active" data-cat="crypto" onclick="switchCat('crypto')">🪙 Crypto</button>
+        <button class="tab-btn" data-cat="sports" onclick="switchCat('sports')">⚽ Sports</button>
+        <button class="tab-btn" data-cat="politics" onclick="switchCat('politics')">🌍 Politics</button>
+      </div>
+    </div>
     <div class="markets-grid" id="featured-markets">
       <div class="loading-state"><div class="spinner"></div> Loading markets…</div>
     </div>
@@ -227,15 +234,30 @@
   refreshStats();
   setInterval(refreshStats, 30_000);
 
-  // ── Featured markets ──────────────────────────────────────────────────────
-  fetch('/api/markets?type=standard').then(r => r.json()).then(markets => {
-    const open = markets.filter(m => (m.status?.kind ?? m.status) === 'Open').slice(-8).reverse();
+  // ── Category tabs ──────────────────────────────────────────────────────────
+  let activeCat = 'crypto';
+  function switchCat(cat) {
+    activeCat = cat;
+    document.querySelectorAll('#cat-tabs .tab-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.cat === cat);
+    });
+    loadCategory(cat);
+  }
+
+  async function loadCategory(cat) {
     const el = document.getElementById('featured-markets');
-    if (!open.length) { el.innerHTML = '<p style="color:var(--muted)">No open markets yet.</p>'; return; }
-    el.innerHTML = open.map(m => marketCard(m, 'standard')).join('');
-  }).catch(() => {
-    document.getElementById('featured-markets').innerHTML = '<p style="color:var(--muted)">Could not load markets.</p>';
-  });
+    el.innerHTML = '<div class="loading-state"><div class="spinner"></div> Loading…</div>';
+    try {
+      const r = await fetch('/api/markets?type=standard&category=' + cat + '&limit=8');
+      const markets = await r.json();
+      const open = markets.filter(m => (m.status?.kind ?? m.status) === 'Open');
+      if (!open.length) { el.innerHTML = '<p style="color:var(--muted)">No open markets in this category.</p>'; return; }
+      el.innerHTML = open.map(m => marketCard(m, 'standard')).join('');
+    } catch { el.innerHTML = '<p style="color:var(--muted)">Could not load markets.</p>'; }
+  }
+
+  // ── Featured markets ──────────────────────────────────────────────────────
+  loadCategory('crypto');
 
   fetch('/api/markets?type=fast').then(r => r.json()).then(markets => {
     const open = markets.filter(m => (m.status?.kind ?? m.status) === 'Open').slice(0,4);
@@ -254,6 +276,9 @@
       ? `<a href="/markets.html?tab=fast" class="btn btn-primary btn-sm" style="background:var(--warn)">Bet ⚡</a>`
       : `<a href="/markets.html" class="btn btn-primary btn-sm">Bet →</a>`;
     const fastTag = isFast ? `<span class="fast-badge" style="margin-left:.3rem">⚡ Fast</span>` : '';
+    const priceRow = isFast && m.currentPrice
+      ? `<div style="font-size:.75rem;color:var(--muted);margin-bottom:.35rem">${m.symbol} · $${Number(m.currentPrice).toLocaleString(undefined,{maximumFractionDigits:2})}</div>`
+      : '';
     return `
       <div class="market-card">
         <div style="display:flex;justify-content:space-between;align-items:center">
@@ -264,6 +289,7 @@
           <span class="market-id">#${m.id}</span>
         </div>
         <div class="market-question">${q}</div>
+        ${priceRow}
         <div class="dual-bar">
           <div class="dual-a" style="width:${m.pct_a}%;min-width:2px"></div>
           <div class="dual-b" style="flex:1;min-width:2px"></div>

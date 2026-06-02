@@ -45,6 +45,12 @@
       <button class="tab-btn active" id="tab-standard" onclick="switchTab('standard')">Standard Markets</button>
       <button class="tab-btn" id="tab-fast" onclick="switchTab('fast')">⚡ Fast Markets (5-min)</button>
     </div>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem" id="std-cat-tabs">
+      <button class="tab-btn active" data-cat="" onclick="switchStdCat('')">All</button>
+      <button class="tab-btn" data-cat="crypto" onclick="switchStdCat('crypto')">🪙 Crypto</button>
+      <button class="tab-btn" data-cat="sports" onclick="switchStdCat('sports')">⚽ Sports</button>
+      <button class="tab-btn" data-cat="politics" onclick="switchStdCat('politics')">🌍 Politics</button>
+    </div>
 
     <!-- Standard markets -->
     <div id="panel-standard">
@@ -246,12 +252,23 @@
     } catch {}
   }
 
+  // ── Category filter for standard markets ────────────────────────────────────
+  let stdCategory = '';
+  function switchStdCat(cat) {
+    stdCategory = cat;
+    document.querySelectorAll('#std-cat-tabs .tab-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.cat === cat);
+    });
+    if (currentTab === 'standard') loadMarkets('standard');
+  }
+
   // ── Load markets ──────────────────────────────────────────────────────────
   async function loadMarkets(type) {
     const el = document.getElementById('markets-' + type);
     el.innerHTML = '<div class="loading-state"><div class="spinner"></div> Loading…</div>';
     try {
-      const r = await fetch('/api/markets?type=' + type);
+      const catSuffix = type === 'standard' && stdCategory ? '&category=' + stdCategory : '';
+      const r = await fetch('/api/markets?type=' + type + catSuffix);
       if (!r.ok) throw new Error('HTTP ' + r.status + ' — server error');
       const markets = await r.json();
 
@@ -342,18 +359,14 @@
 
     let fastMeta = '';
     if (isFast) {
-      const openPrice = m.open_price_micro_usd
-        ? '$' + (Number(m.open_price_micro_usd)/1e6).toLocaleString(undefined,{maximumFractionDigits:2})
+      const cgPrice = m.currentPrice
+        ? '$' + Number(m.currentPrice).toLocaleString(undefined,{maximumFractionDigits:2})
         : '—';
-      const resolveBlock = m.resolve_after_block;
-      const countdownHtml = (resolveBlock && isOpen)
-        ? `<span class="countdown-badge" data-block="${resolveBlock}" id="cd-${m.id}">block #${resolveBlock}</span>`
-        : (resolveBlock ? `<span style="font-size:.7rem;color:var(--muted)">resolved at #${resolveBlock}</span>` : '');
       fastMeta = `
         <div style="font-size:.75rem;color:var(--muted);display:flex;gap:.75rem;flex-wrap:wrap;align-items:center">
           <span>${m.symbol ?? ''}</span>
-          <span>Open: <strong style="color:var(--text)">${openPrice}</strong></span>
-          ${countdownHtml}
+          <span>Price: <strong style="color:var(--text)">${cgPrice}</strong></span>
+          <span style="color:var(--warn)">Resolves in ~5 min</span>
         </div>`;
     }
 
@@ -698,10 +711,10 @@
   });
 
   // ── Auto-refresh ──────────────────────────────────────────────────────────
-  // Standard markets: every 30s (was 60s)
-  // Fast markets: every 20s — they have short betting windows
-  setInterval(() => { loadMarkets('standard'); renderActivity(); }, 30_000);
-  setInterval(() => { loadMarkets('fast');     }, 20_000);
+  // Standard markets: every 30s
+  // Fast markets: every 15s — CoinGecko prices change fast
+  setInterval(() => { if (currentTab === 'standard') loadMarkets('standard'); renderActivity(); }, 30_000);
+  setInterval(() => { if (currentTab === 'fast') loadMarkets('fast'); }, 15_000);
   setInterval(renderActivity, 15_000); // Keep relative timestamps fresh
 
   // ── Init ──────────────────────────────────────────────────────────────────
