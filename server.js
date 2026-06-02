@@ -520,13 +520,22 @@ app.get('/api/agent/categories', async (req, res) => {
 app.get('/api/agent/markets', async (req, res) => {
   if (FALCON_API_KEY) {
     try {
-      const minVol  = Number(req.query.min_volume) || 1000;
-      const limit   = Math.min(Number(req.query.limit) || 10, 50);
       const cat     = req.query.category;
       const nowTs   = Math.floor(Date.now() / 1000);
+      const catQueries = {
+        crypto:   'crypto bitcoin ethereum solana prediction markets polymarket',
+        sports:   'sports nba nfl soccer football prediction markets polymarket',
+        politics: 'politics election president prediction markets polymarket',
+      };
+      const catQuery = cat ? catQueries[cat] : null;
+      let minVol = 1000;
+      let horizon = 7;
+      if (cat === 'sports' || cat === 'politics') { minVol = 100; horizon = 30; }
+      const limit   = Math.min(Number(req.query.limit) || 10, 50);
       const results = await fetchFalconMarkets({
-        closed: false, minVolume: minVol, limit: limit * 2,
-        endDateMin: nowTs, endDateMax: nowTs + (7 * 86400),
+        closed: false, minVolume: minVol, limit: 100,
+        query: catQuery || undefined,
+        endDateMin: nowTs, endDateMax: nowTs + (horizon * 86400),
       });
       const now     = Date.now();
       const mapped  = results
@@ -1275,14 +1284,25 @@ app.get('/api/markets', async (req, res) => {
   if (FALCON_API_KEY) {
     try {
       const closed  = req.query.closed === 'true';
-      const minVol  = Number(req.query.min_volume) || 1000;
-      const limit   = Math.min(Number(req.query.limit) || 20, 50);
       const cat     = req.query.category; // crypto | sports | politics | '' (all)
       const nowTs   = Math.floor(Date.now() / 1000);
+      // Use category-specific query for better results from Heisenberg
+      const catQueries = {
+        crypto:   'crypto bitcoin ethereum solana prediction markets polymarket',
+        sports:   'sports nba nfl soccer football prediction markets polymarket',
+        politics: 'politics election president prediction markets polymarket',
+      };
+      const catQuery = cat ? catQueries[cat] : null;
+      // Wider filters for sports/politics (lower min volume, longer horizon)
+      let minVol = 1000;
+      let horizon = 7;
+      if (cat === 'sports' || cat === 'politics') { minVol = 100; horizon = 30; }
+      const limit   = Math.min(Number(req.query.limit) || 20, 50);
       const results = await fetchFalconMarkets({
-        closed, minVolume: minVol, limit: limit * 2,
-        endDateMin: closed ? nowTs - (30 * 86400) : nowTs,
-        endDateMax: closed ? nowTs : nowTs + (7 * 86400),
+        closed, minVolume: minVol, limit: 100,
+        query: catQuery || undefined,
+        endDateMin: closed ? nowTs - (90 * 86400) : nowTs,
+        endDateMax: closed ? nowTs : nowTs + (horizon * 86400),
       });
       const now     = Date.now();
       const mapped  = results
@@ -1813,18 +1833,18 @@ app.post('/api/admin/manual-resolve', async (req, res) => {
 // In-memory cache for Falcon markets so bet flows can resolve synthetic IDs
 const _falconCache = { markets: [], ts: 0, TTL: 60_000 };
 
-async function fetchFalconMarkets({ closed = false, minVolume = 1000, lookbackDays = 30, limit = 100, endDateMax, endDateMin } = {}) {
+async function fetchFalconMarkets({ closed = false, minVolume = 1000, lookbackDays = 30, limit = 100, endDateMax, endDateMin, query } = {}) {
   if (!FALCON_API_KEY) throw new Error('FALCON_API_KEY not configured — set env var');
   const now = Math.floor(Date.now() / 1000);
-  // Use provided filters or compute defaults
   const eMin = endDateMin ?? (closed ? now - (lookbackDays * 86400) : now);
   const eMax = endDateMax ?? (closed ? now : now + (lookbackDays * 86400));
+  const q = query || (closed ? 'resolved prediction markets' : 'active prediction markets polymarket trending');
   const r = await fetch(FALCON_API_URL, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${FALCON_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       agent_id: 574,
-      query: closed ? 'resolved prediction markets winning outcome' : 'active prediction markets ending soon high volume polymarket',
+      query: q,
       params: {
         closed: closed ? 'True' : 'False',
         min_volume: String(minVolume),
