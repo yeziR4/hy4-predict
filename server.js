@@ -50,6 +50,8 @@ const MARKETS_META_FILE = path.join(__dirname, 'markets-meta.json');
 const RESOLUTIONS_FILE  = path.join(__dirname, 'resolutions.json');
 
 const ADMIN_KEY = process.env.ADMIN_KEY || 'hy4-admin-2026';
+const FALCON_API_KEY = process.env.FALCON_API_KEY || '';
+const FALCON_API_URL = 'https://narrative.agent.heisenberg.so/api/v2/semantic/retrieve/parameterized';
 
 // Classify a Polymarket question into one of our categories by keyword matching.
 // Polymarket's `category` field is unreliable (often empty) — so we ignore it.
@@ -955,6 +957,7 @@ Any autonomous agent can participate with simple REST API calls.
   POST /api/agent/fast-bet        — one-shot price bet (BTC/ETH/SOL/DOT/VARA)
   POST /api/agent/quick-start     — register + hot markets in one call
   GET  /api/agent/my-bets         — your P&L by address (?address=)
+  GET  /api/falcon/markets        — browse fresh Polymarket markets via Falcon (?closed=&min_volume=)
   GET  /api/leaderboard           — all agents ranked by stake
   GET  /api/bets/:address         — raw bets for a specific address
 
@@ -1610,6 +1613,155 @@ app.post('/api/admin/manual-resolve', async (req, res) => {
     console.log(`[manual-resolve] Market #${marketId} → ${outcome} tx=${result.txHash}`);
     res.json({ success: true, marketId, outcome, txHash: result.txHash });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Falcon Integration ─────────────────────────────────────────────────────────
+async function fetchFalconMarkets({ closed = false, minVolume = 1000, lookbackDays = 30, limit = 100 } = {}) {
+  if (!FALCON_API_KEY) throw new Error('FALCON_API_KEY not configured — set env var');
+  const now = Math.floor(Date.now() / 1000);
+  const endMin = closed ? now - (lookbackDays * 86400) : now;
+  const endMax = closed ? now : now + (lookbackDays * 86400);
+  const r = await fetch(FALCON_API_URL, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${FALCON_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      agent_id: 574,
+      query: closed ? 'resolved prediction markets winning outcome' : 'active prediction markets high volume polymarket trending',
+      params: {
+        closed: closed ? 'True' : 'False',
+        min_volume: String(minVolume),
+        duration: '24h',
+        vertical: 'prediction_markets',
+        end_date_min: endMin,
+        end_date_max: endMax,
+      },
+      pagination: { limit, offset: 0 },
+      formatter_config: { format_type: 'raw' },
+    }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!r.ok) throw new Error(`Falcon API ${r.status}`);
+  const d = await r.json();
+  return d?.data?.results || [];
+}
+
+// GET /api/falcon/markets — browse fresh prediction markets via Falcon API
+app.get('/api/falcon/markets', async (req, res) => {
+  try {
+    if (!FALCON_API_KEY) {
+      return res.status(501).json({ error: 'FALCON_API_KEY not configured', hint: 'Set FALCON_API_KEY env var on Railway' });
+    }
+    const closed = req.query.closed === 'true';
+    const minVolume = Number(req.query.min_volume) || 1000;
+    const limit = Math.min(Number(req.query.limit) || 20, 50);
+    const markets = await fetchFalconMarkets({ closed, minVolume, limit });
+    res.json({ count: markets.length, markets: markets.map(m => ({
+      id:             m.condition_id,
+      question:       m.question,
+      outcomeA:       m.side_a_outcome,
+      outcomeB:       m.side_b_outcome,
+      endDate:        m.end_date,
+      volume:         m.volume_total,
+      closed:         m.closed,
+      winningOutcome: m.winning_outcome || null,
+      url:            m.event_slug ? `https://polymarket.com/event/${m.event_slug}` : null,
+    })) });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/admin/sync-falcon — create Vara markets from Falcon's top trending markets
+app.post('/api/admin/sync-falcon', async (req, res) => {
+  const { adminKey, limit = 10, minVolume = 5000 } = req.body || {};
+  if (adminKey !== ADMIN_KEY) return res.status(403).json({ error: 'Forbidden' });
+  if (!funderReady) return res.status(503).json({ error: 'Funder wallet not ready' });
+  if (!FALCON_API_KEY) return res.status(501).json({ error: 'FALCON_API_KEY not configured' });
+
+  res.json({ status: 'started', message: `Syncing top ${limit} Falcon markets. Watch server logs.` });
+
+  (async () => {
+    const meta = loadJson(MARKETS_META_FILE, {});
+    const sync = loadJson(POLY_SYNC_FILE, {});
+    let created = 0, skipped = 0, errors = 0;
+    try {
+      const markets = await fetchFalconMarkets({ closed: false, minVolume, limit });
+      console.log(`[falcon] got ${markets.length} markets`);
+      for (const pm of markets) {
+        const q = (pm.question || '').trim();
+        if (!q) { skipped++; continue; }
+        const polyId = pm.condition_id || pm.id;
+        if (Object.values(sync).some(e => e.polymarketId === polyId)) { skipped++; continue; }
+        try {
+          const outA = pm.side_a_outcome || 'Yes';
+          const outB = pm.side_b_outcome || 'No';
+          console.log(`[falcon] creating "${q.slice(0, 70)}"`);
+          const result = callTx(funderName(), PID_V1, 'PredictionMarket/CreateMarket', [q, outA, outB], null);
+          if (result.error) { console.warn(`[falcon] create failed: ${result.error}`); errors++; continue; }
+          const marketId = result.result ?? result.events?.find(e => e.type === 'MarketCreated')?.data?.market_id;
+          if (marketId == null) { errors++; continue; }
+          meta[String(marketId)] = {
+            category: classifyQuestion(q) || 'general',
+            endDate: pm.end_date || null,
+            polymarketId: polyId,
+            source: 'falcon',
+            hidden: false,
+          };
+          sync[String(marketId)] = {
+            polymarketId: polyId, question: q,
+            outcomeALabel: outA, outcomeBLabel: outB,
+            createdAt: new Date().toISOString(), resolved: false,
+          };
+          saveJson(MARKETS_META_FILE, meta);
+          saveJson(POLY_SYNC_FILE, sync);
+          cache.ts.standard = 0; cache.ts.fast = 0;
+          created++;
+          console.log(`[falcon] ✓ #${marketId} "${q.slice(0, 55)}"`);
+        } catch (e2) { console.warn(`[falcon] error: ${e2.message}`); errors++; }
+      }
+    } catch (e) { console.warn(`[falcon] fetch error: ${e.message}`); }
+    console.log(`[falcon] done — created:${created} skipped:${skipped} errors:${errors}`);
+  })();
+});
+
+// POST /api/admin/resolve-falcon — auto-resolve Vara markets using Falcon's winning_outcome
+app.post('/api/admin/resolve-falcon', async (req, res) => {
+  const { adminKey } = req.body || {};
+  if (adminKey !== ADMIN_KEY) return res.status(403).json({ error: 'Forbidden' });
+  if (!funderReady) return res.status(503).json({ error: 'Funder wallet not ready' });
+  if (!FALCON_API_KEY) return res.status(501).json({ error: 'FALCON_API_KEY not configured' });
+
+  res.json({ status: 'started', message: 'Checking Falcon for resolved markets. Watch server logs.' });
+
+  (async () => {
+    const sync = loadJson(POLY_SYNC_FILE, {});
+    const unresolved = Object.entries(sync).filter(([, e]) => !e.resolved && e.polymarketId);
+    if (unresolved.length === 0) { console.log('[falcon] no unresolved markets to check'); return; }
+    const resolvedFalcon = await fetchFalconMarkets({ closed: true, minVolume: 0, limit: 100 });
+    const falconByPolyId = {};
+    resolvedFalcon.forEach(m => { if (m.condition_id) falconByPolyId[m.condition_id] = m; });
+    let resolved = 0, errors = 0;
+    for (const [ourId, entry] of unresolved) {
+      const falcon = falconByPolyId[entry.polymarketId];
+      if (!falcon?.winning_outcome) continue;
+      const winOutNorm = (falcon.winning_outcome || '').toLowerCase();
+      let outcomeLetter = null;
+      if (winOutNorm === (entry.outcomeALabel || 'yes').toLowerCase()) outcomeLetter = 'A';
+      else if (winOutNorm === (entry.outcomeBLabel || 'no').toLowerCase()) outcomeLetter = 'B';
+      else if (winOutNorm === 'yes') outcomeLetter = 'A';
+      else if (winOutNorm === 'no') outcomeLetter = 'B';
+      if (!outcomeLetter) { console.log(`[falcon] skip #${ourId}: "${entry.question?.slice(0,40)}" outcome="${falcon.winning_outcome}" no match`); continue; }
+      try {
+        const outcomeArg = outcomeLetter === 'A' ? { A: null } : { B: null };
+        const tx = callTx(funderName(), PID_V1, 'PredictionMarket/ResolveMarket', [Number(ourId), outcomeArg], null);
+        if (tx.error) { console.warn(`[falcon] resolve #${ourId} failed: ${tx.error}`); errors++; continue; }
+        sync[ourId] = { ...entry, resolved: true, resolvedAt: new Date().toISOString(), winningOutcome: outcomeLetter, falconOutcome: falcon.winning_outcome };
+        console.log(`[falcon] ✓ #${ourId} → ${outcomeLetter} (Falcon: "${falcon.winning_outcome}")`);
+        resolved++;
+      } catch (e2) { console.warn(`[falcon] resolve error: ${e2.message}`); errors++; }
+    }
+    saveJson(POLY_SYNC_FILE, sync);
+    cache.ts.standard = 0; cache.ts.fast = 0;
+    console.log(`[falcon] resolve done — resolved:${resolved} errors:${errors} unchecked:${unresolved.length - resolved - errors}`);
+  })();
 });
 
 // POST /api/admin/auto-resolve — check Polymarket for resolved markets, resolve ours
