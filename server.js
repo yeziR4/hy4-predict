@@ -2559,10 +2559,10 @@ setupFunder();
 app.listen(PORT, () => {
   console.log(`[vara-predict] http://localhost:${PORT}`);
   if (FUNDER_JSON) checkFunderBalance();  // log funder address + balance
-  // Fast-market auto-resolve every 2 minutes (CoinGecko price check)
+  // Fast-market auto-resolve every 5 minutes (CoinGecko price check)
   autoResolveFastMarkets();
-  setInterval(autoResolveFastMarkets, 2 * 60 * 1000);
-  console.log('[fast-auto] resolve cron every 2min');
+  setInterval(autoResolveFastMarkets, 5 * 60 * 1000);
+  console.log('[fast-auto] resolve cron every 5min');
   if (FALCON_API_KEY) {
     // Auto-resolve Falcon-synced markets every 5 minutes (non-blocking)
     autoResolveFalconMarkets(); // run once immediately
