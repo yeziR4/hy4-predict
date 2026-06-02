@@ -1359,94 +1359,14 @@ app.get('/api/markets', async (req, res) => {
     }
   }
 
-  // Standard markets — Falcon API (Polymarket) or on-chain Vara
-  if (FALCON_API_KEY) {
-    try {
-      const closed  = req.query.closed === 'true';
-      const cat     = req.query.category;
-      const nowTs   = Math.floor(Date.now() / 1000);
-      // Broad query — Heisenberg full-text search is too strict per category.
-      // Fetch a wide set and classify server-side.
-      const broadQuery = cat
-        ? (cat === 'entertainment' ? 'culture prediction markets trending' : `open prediction markets ${cat}`)
-        : 'open prediction markets trending';
-      let minVol = 1000;
-      let horizon = 7;
-      if (cat === 'sports' || cat === 'politics' || cat === 'ai' || cat === 'entertainment') { minVol = 100; horizon = 30; }
-      const limit   = Math.min(Number(req.query.limit) || 20, 50);
-      const results = await fetchFalconMarkets({
-        closed, minVolume: minVol, limit: 100,
-        query: broadQuery,
-        endDateMin: closed ? nowTs - (90 * 86400) : nowTs,
-        endDateMax: closed ? nowTs : nowTs + (horizon * 86400),
-      });
-      const now     = Date.now();
-      const mapped  = results
-        .filter(m => {
-          if (closed !== !!m.closed) return false;
-          if (!m.question || m.question.length < 5) return false;
-          if (cat) {
-            const c = classifyQuestion(m.question);
-            if (c) {
-              const catMap = { crypto: 'crypto', sports: 'sports', politics: 'world', ai: 'ai', entertainment: 'entertainment' };
-              if (c !== (catMap[cat] || cat)) return false;
-            }
-            // Fallback: simple substring check
-            const catKeywords = {
-              sports: ['nba','nfl','soccer','football','mlb','nhl','ufc','fight','match','game','vs','tournament','championship','playoff','super bowl','world cup','olympic','tennis','f1','formula'],
-              politics: ['election','president','congress','senate','governor','vote','democrat','republican','gop','senator','campaign','political','party','debate','poll'],
-              ai: ['ai','artificial intelligence','gpt','chatgpt','openai','claude','gemini','llm','machine learning','neural','deep learning','robot','automation'],
-              entertainment: ['oscar','grammy','emmy','movie','film','netflix','celebrity','music','album','concert','gaming','esport','twitch','streaming','youtube','box office','marvel','dc'],
-            };
-            const kws = catKeywords[cat];
-            if (kws) {
-              const q = m.question.toLowerCase();
-              return kws.some(kw => q.includes(kw));
-            }
-          }
-          return true;
-        })
-        .map((m, i) => {
-          const endMs  = m.end_date ? new Date(m.end_date).getTime() : null;
-          const msLeft = endMs ? endMs - now : null;
-          return {
-            id:            -(i + 1),
-            falconId:      m.condition_id || null,
-            question:      m.question || '',
-            outcome_a:     m.side_a_outcome || 'Yes',
-            outcome_b:     m.side_b_outcome || 'No',
-            pct_a:         50,
-            pct_b:         50,
-            vara_a:        0,
-            vara_b:        0,
-            status:        'Open',
-            category:      classifyQuestion(m.question) || 'general',
-            endDate:       m.end_date || null,
-            volume:        m.volume_total || 0,
-            winningOutcome: m.winning_outcome || null,
-            daysLeft:      msLeft != null ? Math.max(0, Math.ceil(msLeft / 86_400_000)) : null,
-            closingLabel:  msLeft != null
-              ? (Math.ceil(msLeft / 86_400_000) <= 0 ? 'Today'
-                 : Math.ceil(msLeft / 86_400_000) === 1 ? 'Tomorrow'
-                 : `${Math.ceil(msLeft / 86_400_000)}d left`)
-              : null,
-            source: 'falcon',
-          };
-        });
-      return res.json(mapped);
-    } catch (e) {
-      console.warn('[markets] Falcon failed:', e.message);
-      return res.status(502).json({ error: 'Falcon API unavailable', detail: e.message });
-    }
-  }
-
-  // On-chain Vara markets (only if Falcon not configured)
+  // Standard markets — merge on-chain Vara markets + Falcon API categorized previews
   const includeStale = req.query.includeStale === 'true';
   try {
+    const cat = req.query.category;
     const markets = await getMarkets(type);
-    const meta    = loadJson(MARKETS_META_FILE, {});
-    const now     = Date.now();
-    const enriched = markets
+    const meta = loadJson(MARKETS_META_FILE, {});
+    const now = Date.now();
+    let enriched = markets
       .filter(m => includeStale || !isStaleMarket(m, meta))
       .map(m => {
       const entry   = meta[String(m.id)];
@@ -1458,8 +1378,87 @@ app.get('/api/markets', async (req, res) => {
         endDate:      entry.endDate  || null,
         daysLeft:     msLeft != null ? Math.max(0, Math.ceil(msLeft / 86_400_000)) : null,
         closingLabel: msLeft != null ? (Math.ceil(msLeft/86_400_000) <= 0 ? 'Today' : Math.ceil(msLeft/86_400_000) === 1 ? 'Tomorrow' : `${Math.ceil(msLeft/86_400_000)}d left`) : null,
+        stale:        false,
+        source:       'onchain',
       };
     });
+
+    // Append Falcon API previews for categorized browsing (if Falcon configured)
+    if (FALCON_API_KEY) {
+      try {
+        const nowTs = Math.floor(Date.now() / 1000);
+        const broadQuery = cat
+          ? (cat === 'entertainment' ? 'culture prediction markets trending' : `open prediction markets ${cat}`)
+          : 'open prediction markets trending';
+        let minVol = 1000, horizon = 7;
+        if (cat === 'sports' || cat === 'politics' || cat === 'ai' || cat === 'entertainment') { minVol = 100; horizon = 30; }
+        const falconResults = await fetchFalconMarkets({
+          closed: false, minVolume: minVol, limit: 100,
+          query: broadQuery,
+          endDateMin: nowTs, endDateMax: nowTs + (horizon * 86400),
+        });
+        const existingQuestions = new Set(enriched.map(m => m.question?.toLowerCase().trim()));
+        const falconMapped = falconResults
+          .filter(m => m.question && m.question.length >= 5 && !existingQuestions.has(m.question.toLowerCase().trim()))
+          .filter(m => {
+            if (!cat) return true;
+            const c = classifyQuestion(m.question);
+            if (c) {
+              const catMap = { crypto: 'crypto', sports: 'sports', politics: 'world', ai: 'ai', entertainment: 'entertainment' };
+              if (c !== (catMap[cat] || cat)) return false;
+            }
+            const catKeywords = {
+              sports: ['nba','nfl','soccer','football','mlb','nhl','ufc','fight','match','game','vs','tournament','championship','playoff','super bowl','world cup','olympic','tennis','f1','formula'],
+              politics: ['election','president','congress','senate','governor','vote','democrat','republican','gop','senator','campaign','political','party','debate','poll'],
+              ai: ['ai','artificial intelligence','gpt','chatgpt','openai','claude','gemini','llm','machine learning','neural','deep learning','robot','automation'],
+              entertainment: ['oscar','grammy','emmy','movie','film','netflix','celebrity','music','album','concert','gaming','esport','twitch','streaming','youtube','box office','marvel','dc'],
+            };
+            const kws = catKeywords[cat];
+            if (kws) {
+              const q = m.question.toLowerCase();
+              return kws.some(kw => q.includes(kw));
+            }
+            return true;
+          })
+          .slice(0, 20)
+          .map((m, i) => {
+            const endMs = m.end_date ? new Date(m.end_date).getTime() : null;
+            const msLeft = endMs ? endMs - now : null;
+            return {
+              id: -(i + 1), falconId: m.condition_id || null,
+              question: m.question || '', outcome_a: m.side_a_outcome || 'Yes',
+              outcome_b: m.side_b_outcome || 'No', pct_a: 50, pct_b: 50,
+              vara_a: 0, vara_b: 0, status: 'Open',
+              category: classifyQuestion(m.question) || 'general',
+              endDate: m.end_date || null, volume: m.volume_total || 0,
+              daysLeft: msLeft != null ? Math.max(0, Math.ceil(msLeft / 86_400_000)) : null,
+              closingLabel: msLeft != null
+                ? (Math.ceil(msLeft / 86_400_000) <= 0 ? 'Today'
+                   : Math.ceil(msLeft / 86_400_000) === 1 ? 'Tomorrow'
+                   : `${Math.ceil(msLeft / 86_400_000)}d left`) : null,
+              source: 'falcon',
+            };
+          });
+        enriched = [...enriched, ...falconMapped];
+      } catch (e) {
+        console.warn('[markets] Falcon preview failed:', e.message);
+      }
+    }
+
+    // Apply category filter if specified
+    if (cat) {
+      enriched = enriched.filter(m => {
+        const mc = (m.category || '').toLowerCase();
+        const q = (m.question || '').toLowerCase();
+        if (mc === cat) return true;
+        // Fallback: keyword match on question
+        const catMap = { crypto: ['crypto','bitcoin','btc','eth','sol','doge','ada','dot'], sports: ['sport','nba','nfl','soccer','football'], politics: ['election','president','vote','political'], ai: ['ai','artificial intelligence','gpt','chatgpt'], entertainment: ['movie','film','oscar','celebrity','music'] };
+        const kws = catMap[cat];
+        if (kws) return kws.some(kw => q.includes(kw));
+        return false;
+      });
+    }
+
     res.json(enriched);
   } catch (e) {
     res.status(500).json({ error: e.message });
