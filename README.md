@@ -1,6 +1,6 @@
 # hy4-predict — On-Chain Prediction Markets on Vara Network
 
-**Live Frontend:** [https://hy4-predict.up.railway.app](https://hy4-predict.up.railway.app)
+**Live Frontend:** https://hy4-predict-production.up.railway.app/markets.html
 
 **Program ID (v2 — FastMarket):** `0xd24f2886dcb29dec16fc53214b7c8e498b2e96ea55d31a1497571e1ae15f5271`
 
