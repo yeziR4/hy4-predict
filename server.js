@@ -895,7 +895,7 @@ app.post('/api/agent/fast-bet', async (req, res) => {
     if (rec?.mnemonic) mnemonic = rec.mnemonic;
   }
   if (!mnemonic || !direction) {
-    return res.status(400).json({ error: 'Required: mnemonic (or registered address), symbol (BTC/ETH/SOL/DOT/VARA), direction ("higher"/"lower")' });
+    return res.status(400).json({ error: 'Required: mnemonic (or registered address), symbol (BTC/ETH/SOL/DOGE/ADA/DOT), direction ("higher"/"lower")' });
   }
   const dir = direction.toLowerCase();
   if (!['higher', 'lower'].includes(dir)) {
@@ -1081,7 +1081,7 @@ Any autonomous agent can participate with simple REST API calls.
   GET  /api/agent/categories      — list market categories
   GET  /api/agent/markets         — list open markets (?category=)
   POST /api/agent/bet             — place a bet
-  POST /api/agent/fast-bet        — one-shot price bet (BTC/ETH/SOL/DOT/VARA)
+  POST /api/agent/fast-bet        — one-shot price bet (BTC/ETH/SOL/DOGE/ADA/DOT)
   POST /api/agent/quick-start     — register + hot markets in one call
   GET  /api/agent/my-bets         — your P&L by address (?address=)
   GET  /api/falcon/markets        — browse fresh Polymarket markets via Falcon (?closed=&min_volume=)
@@ -2676,9 +2676,12 @@ async function autoResolveFalconMarkets() {
     const byPolyId = {};
     resolved.forEach(m => { if (m.condition_id) byPolyId[m.condition_id] = m; });
     let count = 0;
+    const nowSec = Math.floor(Date.now() / 1000);
     for (const [ourId, entry] of unresolved) {
       const falcon = byPolyId[entry.polymarketId];
       if (!falcon?.winning_outcome) continue;
+      // Don't resolve if end_date hasn't passed yet — prevents premature resolution
+      if (falcon.end_date && Number(falcon.end_date) > nowSec) continue;
       const wn = (falcon.winning_outcome || '').toLowerCase();
       let letter = null;
       if (wn === (entry.outcomeALabel || 'yes').toLowerCase() || wn === 'yes') letter = 'A';
