@@ -57,7 +57,7 @@ const FALCON_API_URL = 'https://narrative.agent.heisenberg.so/api/v2/semantic/re
 // Polymarket's `category` field is unreliable (often empty) — so we ignore it.
 const POLY_CAT_KEYWORDS = {
   crypto:        /\b(btc|bitcoin|eth|ethereum|sol|solana|xrp|ripple|bnb|doge|dogecoin|ada|cardano|crypto|blockchain|defi|nft|stablecoin|coinbase|binance|altcoin|memecoin|web3|layer.?2|base chain|avalanche|polygon|chainlink|uniswap|aave)\b/i,
-  ai:            /\b(gpt|chatgpt|openai|claude|anthropic|gemini|google ai|mistral|llama|deepmind|ai model|large language|llm|artificial intelligence|machine learning|neural network|diffusion model|sora|midjourney|stable diffusion|ai.?agent|agi|superintelligence|copilot|cursor|coding ai)\b/i,
+  ai:            /\b(ai|gpt|chatgpt|openai|claude|anthropic|gemini|google ai|mistral|llama|deepmind|ai model|large language|llm|artificial intelligence|machine learning|neural network|diffusion model|sora|midjourney|stable diffusion|ai.?agent|agi|superintelligence|copilot|cursor|coding ai)\b/i,
   sports:        /\b(nba|nfl|mlb|nhl|premier league|champions league|world cup|super bowl|ufc|mma|wimbledon|us open|masters|formula.?1|f1|nascar|olympics|fifa|championship|tournament|playoffs|finals|season|mvp|transfer|draft)\b/i,
   entertainment: /\b(oscar|grammy|emmy|golden globe|box office|movie|film|netflix|disney|marvel|dc comics|celebrity|kardashian|taylor swift|beyonce|album|billboard|streaming|spotify|youtube|twitch|gaming|esports|video game)\b/i,
   weather:       /\b(weather|temperature|hurricane|tornado|earthquake|flood|rain|snow|storm|climate|global warming|el niño|la niña|drought|wildfire|heatwave|freeze|ice|hail|wind|thunderstorm|blizzard|cyclone|typhoon)\b/i,
@@ -542,10 +542,13 @@ app.get('/api/agent/markets', async (req, res) => {
       const now     = Date.now();
       const mapped  = results
         .filter(m => {
+          if (!m.question || m.question.length < 5) return false;
           if (cat) {
             const c = classifyQuestion(m.question);
-            if (!c) return false;
-            const catMap = { crypto: 'crypto', sports: 'sports', politics: 'world' };
+            // If no keyword match, include it anyway — Heisenberg query already narrowed it
+            if (!c) return true;
+            // Map internal category labels to user-facing ones
+            const catMap = { crypto: 'crypto', sports: 'sports', politics: 'world', ai: 'ai', entertainment: 'entertainment' };
             return c === (catMap[cat] || cat);
           }
           return true;
@@ -1340,11 +1343,13 @@ app.get('/api/markets', async (req, res) => {
       const mapped  = results
         .filter(m => {
           if (closed !== !!m.closed) return false;
+          if (!m.question || m.question.length < 5) return false;
           if (cat) {
             const c = classifyQuestion(m.question);
-            if (!c) return false;
-            // Map our categories to user's desired labels
-            const catMap = { crypto: 'crypto', sports: 'sports', politics: 'world' };
+            // If no keyword match, include it anyway — Heisenberg query already narrowed it
+            if (!c) return true;
+            // Map internal category labels to user-facing ones
+            const catMap = { crypto: 'crypto', sports: 'sports', politics: 'world', ai: 'ai', entertainment: 'entertainment' };
             return c === (catMap[cat] || cat);
           }
           return true;
