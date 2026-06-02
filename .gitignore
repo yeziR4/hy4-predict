@@ -44,3 +44,4 @@ funded.json
 
 # Runtime state — resets per deploy, never committed
 ip-session.json
+falcon-market-map.json

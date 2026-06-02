@@ -516,9 +516,46 @@ app.get('/api/agent/categories', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/agent/markets — top 10 open markets sorted by soonest closing
-// Markets synced from Polymarket show first (have endDate); others follow sorted by id
+// GET /api/agent/markets — return Falcon markets when configured, else on-chain Vara markets
 app.get('/api/agent/markets', async (req, res) => {
+  if (FALCON_API_KEY) {
+    try {
+      const minVol  = Number(req.query.min_volume) || 1000;
+      const limit   = Math.min(Number(req.query.limit) || 10, 50);
+      const results = await fetchFalconMarkets({ closed: false, minVolume: minVol, limit: limit * 2 });
+      const now     = Date.now();
+      const mapped  = results
+        .filter(m => !m.closed)
+        .slice(0, limit)
+        .map((m, i) => {
+          const endMs  = m.end_date ? new Date(m.end_date).getTime() : null;
+          const msLeft = endMs ? endMs - now : null;
+          return {
+            id:           -(i + 1),
+            falconId:     m.condition_id || null,
+            question:     m.question || '',
+            outcomeA:     m.side_a_outcome || 'Yes',
+            outcomeB:     m.side_b_outcome || 'No',
+            volume:       m.volume_total || 0,
+            status:       'open',
+            type:         'falcon',
+            endDate:      m.end_date || null,
+            daysLeft:     msLeft != null ? Math.max(0, Math.ceil(msLeft / 86_400_000)) : null,
+            hoursLeft:    msLeft != null ? Math.max(0, Math.ceil(msLeft / 3_600_000)) : null,
+            closingLabel: msLeft != null
+              ? (Math.ceil(msLeft / 86_400_000) <= 0 ? 'Today'
+                 : Math.ceil(msLeft / 86_400_000) === 1 ? 'Tomorrow'
+                 : `${Math.ceil(msLeft / 86_400_000)}d left`)
+              : null,
+          };
+        });
+      return res.json(mapped);
+    } catch (e) {
+      console.warn('[agent/markets] Falcon failed, falling back:', e.message);
+    }
+  }
+
+  // Fallback: on-chain Vara markets
   try {
     const [std, fast] = await Promise.all([getMarkets('standard'), getMarkets('fast')]);
     const meta = loadJson(MARKETS_META_FILE, {});
@@ -530,9 +567,7 @@ app.get('/api/agent/markets', async (req, res) => {
         const status = m.status?.kind ?? m.status;
         if (status !== 'Open') return false;
         if (meta[String(m.id)]?.hidden) return false;
-        // When we have synced markets, only show those (keeps the list clean)
         if (hasMeta && !meta[String(m.id)]) return false;
-        // Skip markets with endDate more than 1 day in the past (stale Polymarket clones)
         const endDate = meta[String(m.id)]?.endDate;
         if (endDate && (new Date(endDate).getTime() + 86_400_000 < now)) return false;
         return true;
@@ -718,6 +753,12 @@ app.post('/api/agent/bet', async (req, res) => {
   const amountVara = amount ? String(amount) : '0.5';
 
   try {
+    // Resolve Falcon market IDs (negative synthetic IDs → real on-chain market)
+    if (typeof marketId === 'number' && marketId < 0) {
+      marketId = await resolveFalconMarketId(marketId);
+    } else if (typeof marketId === 'string' && marketId.startsWith('-')) {
+      marketId = await resolveFalconMarketId(Number(marketId));
+    }
     const tmpName   = 'agent_bet_' + Date.now();
     const mnEscaped = mnemonic.replace(/"/g, '\\"');
     execSync(`${NODE} "${VW_SCRIPT}" wallet import --name ${tmpName} --mnemonic "${mnEscaped}"`,
@@ -1158,6 +1199,45 @@ function isStaleMarket(m, meta) {
 }
 
 app.get('/api/markets', async (req, res) => {
+  // When Falcon API is configured, return live Falcon markets instead of on-chain Vara markets
+  if (FALCON_API_KEY) {
+    try {
+      const closed  = req.query.closed === 'true';
+      const minVol  = Number(req.query.min_volume) || 1000;
+      const limit   = Math.min(Number(req.query.limit) || 20, 50);
+      const results = await fetchFalconMarkets({ closed: closed, minVolume: minVol, limit: limit * 2 });
+      const now     = Date.now();
+      const mapped  = results.map((m, i) => {
+        const endMs  = m.end_date ? new Date(m.end_date).getTime() : null;
+        const msLeft = endMs ? endMs - now : null;
+        return {
+          id:            -(i + 1),  // synthetic negative ID (Falcon markets have no on-chain ID)
+          falconId:      m.condition_id || null,
+          question:      m.question || '',
+          outcome_a:     m.side_a_outcome || 'Yes',
+          outcome_b:     m.side_b_outcome || 'No',
+          status:        m.closed ? 'Resolved' : 'Open',
+          category:      classifyQuestion(m.question) || 'general',
+          endDate:       m.end_date || null,
+          volume:        m.volume_total || 0,
+          winningOutcome: m.winning_outcome || null,
+          daysLeft:      msLeft != null ? Math.max(0, Math.ceil(msLeft / 86_400_000)) : null,
+          closingLabel:  msLeft != null
+            ? (Math.ceil(msLeft / 86_400_000) <= 0 ? 'Today'
+               : Math.ceil(msLeft / 86_400_000) === 1 ? 'Tomorrow'
+               : `${Math.ceil(msLeft / 86_400_000)}d left`)
+            : null,
+          source: 'falcon',
+        };
+      });
+      return res.json(mapped);
+    } catch (e) {
+      // Fallback to on-chain markets if Falcon fails
+      console.warn('[markets] Falcon failed, falling back to chain:', e.message);
+    }
+  }
+
+  // On-chain Vara markets (default / fallback)
   const type = req.query.type === 'fast' ? 'fast' : 'standard';
   const includeStale = req.query.includeStale === 'true';
   try {
@@ -1208,6 +1288,14 @@ app.post('/api/bet', async (req, res) => {
   }
 
   try {
+    // Resolve Falcon market IDs (negative synthetic IDs → real on-chain market)
+    let resolvedMarketId = marketId;
+    if (typeof marketId === 'number' && marketId < 0) {
+      resolvedMarketId = await resolveFalconMarketId(marketId);
+    } else if (typeof marketId === 'string' && marketId.startsWith('-')) {
+      resolvedMarketId = await resolveFalconMarketId(Number(marketId));
+    }
+
     const tmpName = 'hy4bet_' + Date.now();
     // Import wallet — mnemonic must be quoted so its words aren't treated as separate args
     const mnEscaped = mnemonic.replace(/"/g, '\\"');
@@ -1222,7 +1310,7 @@ app.post('/api/bet', async (req, res) => {
 
     const result = vwAs(tmpName, [
       'call', pid, `${service}/${method}`,
-      '--args', JSON.stringify([Number(marketId), outcomeArg]),
+      '--args', JSON.stringify([resolvedMarketId, outcomeArg]),
       '--idl', IDL_PATH,
       '--value', String(amount),
     ], { ignoreError: true });
@@ -1237,12 +1325,12 @@ app.post('/api/bet', async (req, res) => {
       const pair = await GearKeyring.fromMnemonic(mnemonic);
       const userAddr = pair.address;
       const cachedAll = [...(cache.standard || []), ...(cache.fast || [])];
-      const betMarket = cachedAll.find(m => m.id === Number(marketId));
+      const betMarket = cachedAll.find(m => m.id === resolvedMarketId);
       const outLetter = outcome === 'A' ? 'A' : 'B';
       const betsDb = loadJson(BETS_FILE, {});
       if (!betsDb[userAddr]) betsDb[userAddr] = { bets: [] };
       betsDb[userAddr].bets.push({
-        marketId:  Number(marketId),
+        marketId:  resolvedMarketId,
         outcome:   outLetter,
         amount:    parseFloat(amount),
         type:      isFast ? 'fast' : 'standard',
@@ -1616,6 +1704,9 @@ app.post('/api/admin/manual-resolve', async (req, res) => {
 });
 
 // ── Falcon Integration ─────────────────────────────────────────────────────────
+// In-memory cache for Falcon markets so bet flows can resolve synthetic IDs
+const _falconCache = { markets: [], ts: 0, TTL: 60_000 };
+
 async function fetchFalconMarkets({ closed = false, minVolume = 1000, lookbackDays = 30, limit = 100 } = {}) {
   if (!FALCON_API_KEY) throw new Error('FALCON_API_KEY not configured — set env var');
   const now = Math.floor(Date.now() / 1000);
@@ -1642,7 +1733,50 @@ async function fetchFalconMarkets({ closed = false, minVolume = 1000, lookbackDa
   });
   if (!r.ok) throw new Error(`Falcon API ${r.status}`);
   const d = await r.json();
-  return d?.data?.results || [];
+  const results = d?.data?.results || [];
+  // Warm the in-memory cache on every fetch
+  _falconCache.markets = results;
+  _falconCache.ts = Date.now();
+  return results;
+}
+
+// Resolve a Falcon synthetic ID (negative number) to an on-chain Vara market ID.
+// If the market hasn't been synced yet, creates it on-chain and stores the mapping.
+const FALCON_MARKET_MAP_FILE = path.join(__dirname, 'falcon-market-map.json');
+async function resolveFalconMarketId(syntheticId) {
+  if (syntheticId >= 0) return syntheticId; // already a real on-chain ID
+  const idx = Math.abs(syntheticId) - 1; // -1 → 0, -2 → 1, etc.
+  // Refresh cache if stale
+  if (Date.now() - _falconCache.ts > _falconCache.TTL) {
+    try { await fetchFalconMarkets({ closed: false, minVolume: 1000, limit: 50 }); } catch {}
+  }
+  const falcon = _falconCache.markets[idx];
+  if (!falcon) throw new Error(`Falcon market ${syntheticId} not found in cache`);
+  const conditionId = falcon.condition_id;
+  if (!conditionId) throw new Error('Falcon market has no condition_id');
+  // Check if already mapped
+  const map = loadJson(FALCON_MARKET_MAP_FILE, {});
+  if (map[conditionId]) return map[conditionId].varaMarketId;
+  // Create on-chain Vara market
+  if (!funderReady) throw new Error('Funder wallet not ready');
+  const q = (falcon.question || '').trim();
+  const outA = falcon.side_a_outcome || 'Yes';
+  const outB = falcon.side_b_outcome || 'No';
+  const result = callTx(funderName(), PID_V1, 'PredictionMarket/CreateMarket', [q, outA, outB], null);
+  if (result.error) throw new Error('Market creation failed: ' + result.error);
+  const marketId = result.result ?? result.events?.find(e => e.type === 'MarketCreated')?.data?.market_id;
+  if (marketId == null) throw new Error('Could not determine new market ID');
+  // Store mapping
+  map[conditionId] = { varaMarketId: marketId, question: q, createdAt: new Date().toISOString() };
+  saveJson(FALCON_MARKET_MAP_FILE, map);
+  // Also store in polymarket-sync for auto-resolve
+  const sync = loadJson(POLY_SYNC_FILE, {});
+  sync[String(marketId)] = { polymarketId: conditionId, question: q, outcomeALabel: outA, outcomeBLabel: outB, createdAt: new Date().toISOString(), resolved: false, source: 'falcon-on-bet' };
+  saveJson(POLY_SYNC_FILE, sync);
+  // Bust cache so new market appears immediately
+  cache.ts.standard = 0; cache.ts.fast = 0;
+  console.log(`[falcon] synced "${q.slice(0, 55)}" → Vara market #${marketId}`);
+  return marketId;
 }
 
 // GET /api/falcon/markets — browse fresh prediction markets via Falcon API
@@ -2184,9 +2318,53 @@ app.get('/api/leaderboard', async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ── Falcon auto-resolve ───────────────────────────────────────────────────────
+// Non-blocking: uses callTxAsync (exec, not execSync) so it doesn't crash Railway.
+const FALCON_RESOLVE_INTERVAL = 5 * 60 * 1000; // 5 minutes
+async function autoResolveFalconMarkets() {
+  if (!FALCON_API_KEY || !funderReady) return;
+  try {
+    const sync = loadJson(POLY_SYNC_FILE, {});
+    const unresolved = Object.entries(sync).filter(([, e]) => !e.resolved && e.polymarketId);
+    if (unresolved.length === 0) return;
+    const resolved = await fetchFalconMarkets({ closed: true, minVolume: 0, limit: 100 });
+    const byPolyId = {};
+    resolved.forEach(m => { if (m.condition_id) byPolyId[m.condition_id] = m; });
+    let count = 0;
+    for (const [ourId, entry] of unresolved) {
+      const falcon = byPolyId[entry.polymarketId];
+      if (!falcon?.winning_outcome) continue;
+      const wn = (falcon.winning_outcome || '').toLowerCase();
+      let letter = null;
+      if (wn === (entry.outcomeALabel || 'yes').toLowerCase() || wn === 'yes') letter = 'A';
+      else if (wn === (entry.outcomeBLabel || 'no').toLowerCase() || wn === 'no') letter = 'B';
+      if (!letter) continue;
+      const outcomeArg = letter === 'A' ? { A: null } : { B: null };
+      try {
+        const tx = await callTxAsync(funderName(), PID_V1, 'PredictionMarket/ResolveMarket', [Number(ourId), outcomeArg], null);
+        if (tx?.error) { console.warn(`[falcon-auto] #${ourId} failed: ${tx.error}`); continue; }
+        sync[ourId] = { ...entry, resolved: true, resolvedAt: new Date().toISOString(), winningOutcome: letter, falconOutcome: falcon.winning_outcome };
+        saveJson(POLY_SYNC_FILE, sync);
+        cache.ts.standard = 0; cache.ts.fast = 0;
+        count++;
+        console.log(`[falcon-auto] ✓ #${ourId} → ${letter} (${falcon.winning_outcome})`);
+      } catch (e) { console.warn(`[falcon-auto] #${ourId} error: ${e.message}`); }
+    }
+    if (count > 0) console.log(`[falcon-auto] resolved ${count} markets`);
+  } catch (e) {
+    if (!e.message.includes('timeout') && !e.message.includes('configured')) console.warn('[falcon-auto] error:', e.message);
+  }
+}
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 setupFunder();
 app.listen(PORT, () => {
   console.log(`[vara-predict] http://localhost:${PORT}`);
   if (FUNDER_JSON) checkFunderBalance();  // log funder address + balance
+  if (FALCON_API_KEY) {
+    // Auto-resolve Falcon-synced markets every 5 minutes (non-blocking)
+    autoResolveFalconMarkets(); // run once immediately
+    setInterval(autoResolveFalconMarkets, FALCON_RESOLVE_INTERVAL);
+    console.log(`[falcon-auto] watching for resolved markets every ${FALCON_RESOLVE_INTERVAL/60000}min`);
+  }
 });
