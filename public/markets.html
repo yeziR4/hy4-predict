@@ -611,7 +611,8 @@
       const r = await fetch('/api/bet', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mnemonic, marketId: currentMarket.id,
-          outcome: selectedOutcome, amount, type: currentMarket.type })
+          outcome: selectedOutcome, amount, type: currentMarket.type,
+          question: currentMarket.question })
       });
       const d = await r.json();
       const el = document.getElementById('bet-result');

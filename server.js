@@ -1496,7 +1496,7 @@ app.get('/api/stats', async (req, res) => {
 
 // Place bet (user provides mnemonic — imported as temp wallet, then deleted after)
 app.post('/api/bet', async (req, res) => {
-  const { mnemonic, marketId, outcome, amount, type } = req.body;
+  const { mnemonic, marketId, outcome, amount, type, question } = req.body;
   if (!mnemonic || marketId == null || !outcome || !amount) {
     return res.status(400).json({ error: 'mnemonic, marketId, outcome, amount required' });
   }
@@ -1557,6 +1557,7 @@ app.post('/api/bet', async (req, res) => {
       const cachedAll = [...(cache.standard || []), ...(cache.fast || [])];
       const betMarket = cachedAll.find(m => m.id === resolvedMarketId);
       const outLetter = outcome === 'A' ? 'A' : 'B';
+      const qStr = betMarket ? cleanQServer(betMarket.question) : (question || null);
       const betsDb = loadJson(BETS_FILE, {});
       if (!betsDb[userAddr]) betsDb[userAddr] = { bets: [] };
       betsDb[userAddr].bets.push({
@@ -1564,7 +1565,7 @@ app.post('/api/bet', async (req, res) => {
         outcome:   outLetter,
         amount:    parseFloat(amount),
         type:      isFast ? 'fast' : 'standard',
-        question:  betMarket ? cleanQServer(betMarket.question) : null,
+        question:  qStr,
         outcome_a: betMarket?.outcome_a || null,
         outcome_b: betMarket?.outcome_b || null,
         placedAt:  new Date().toISOString(),

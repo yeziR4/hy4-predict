@@ -377,7 +377,8 @@ function rankBadge(i) {
 }
 
 function renderTable() {
-  const myWallet = localStorage.getItem('hy4_wallet') || '';
+  let myWallet = '';
+  try { const w = JSON.parse(localStorage.getItem('hy4_wallet') || '{}'); myWallet = w.address || ''; } catch {}
   const sorted = [...lbData].sort((a, b) => {
     if (sortKey === 'totalPnl')       return b.totalPnl - a.totalPnl;
     if (sortKey === 'betCount')       return b.betCount - a.betCount;

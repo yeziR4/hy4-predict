@@ -193,21 +193,21 @@
 
     return `
       <tr>
-        <td style="color:var(--muted)">#${b.marketId}</td>
-        <td style="max-width:220px">${cleanQ(b.question)}</td>
+        <td><a href="/markets.html?market=${b.marketId}&type=${b.type}" target="_blank" style="color:var(--primary);text-decoration:none">#${b.marketId}</a></td>
+        <td style="max-width:220px">${cleanQ(b.question) || ('Market #' + b.marketId)}</td>
         <td><span class="outcome-pill ${myOutcome === 'A' ? 'pill-a' : 'pill-b'}">${myOutcome}</span></td>
         <td>${b.amount?.toFixed(2)} VARA</td>
         <td>${status === 'Open'
-          ? '<span style="color:var(--success);font-size:.8rem">�? Open</span>'
+          ? '<span style="color:var(--success);font-size:.8rem">● Open</span>'
           : '<span style="color:var(--muted);font-size:.8rem">✓ Resolved</span>'}</td>
         <td>${winner
-          ? '<span class="win-pill">�?� Won</span>'
+          ? '<span class="win-pill">🏆 Won</span>'
           : loser
             ? '<span class="lose-pill">✗ Lost</span>'
             : '—'}</td>
         <td>${winner
           ? `<button class="btn btn-success btn-sm" onclick='openClaim(${JSON.stringify(b).replace(/'/g,"&#39;")})'>Claim</button>`
-          : ''}</td>
+          : b.txHash ? `<a href="https://vara.subscan.io/extrinsic/${b.txHash}" target="_blank" style="color:var(--muted);font-size:.72rem;text-decoration:none">Tx</a>` : ''}</td>
       </tr>`;
   }
 
