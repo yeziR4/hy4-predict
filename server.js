@@ -527,7 +527,7 @@ app.get('/api/agent/markets', async (req, res) => {
       // queries like "ai artificial intelligence" can return 0 results.
       // Instead we fetch a wide set and classify server-side.
       const broadQuery = cat
-        ? `open prediction markets ${cat}`  // short, category hint only
+        ? (cat === 'entertainment' ? 'culture prediction markets trending' : `open prediction markets ${cat}`)
         : 'open prediction markets high volume';
       let minVol = 1000;
       let horizon = 7;
@@ -840,6 +840,9 @@ app.post('/api/agent/bet', async (req, res) => {
       saveJson(BETS_FILE, betsDb);
     } catch (e2) { console.warn('[bet-track] failed:', e2.message); }
 
+    // Fire liquidity bets from funded agent wallets (non-blocking)
+    autoLiquidityBet(marketId, amountVara, 'standard').catch(() => {});
+
     res.json({ success: true, txHash: result.txHash, marketId: Number(marketId), outcome: outcomeLetter });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -911,6 +914,9 @@ app.post('/api/agent/fast-bet', async (req, res) => {
       });
       saveJson(BETS_FILE, betsDb);
     } catch {}
+
+    // Fire liquidity bets from funded agent wallets (non-blocking)
+    autoLiquidityBet(marketId, '0.5', 'fast').catch(() => {});
 
     res.json({
       success:          true,
@@ -1333,7 +1339,7 @@ app.get('/api/markets', async (req, res) => {
       // Broad query — Heisenberg full-text search is too strict per category.
       // Fetch a wide set and classify server-side.
       const broadQuery = cat
-        ? `open prediction markets ${cat}`
+        ? (cat === 'entertainment' ? 'culture prediction markets trending' : `open prediction markets ${cat}`)
         : 'open prediction markets trending';
       let minVol = 1000;
       let horizon = 7;
@@ -1522,6 +1528,9 @@ app.post('/api/bet', async (req, res) => {
       });
       saveJson(BETS_FILE, betsDb);
     } catch {}
+
+    // Fire liquidity bets from funded agent wallets (non-blocking)
+    autoLiquidityBet(resolvedMarketId, amount, isFast ? 'fast' : 'standard').catch(() => {});
 
     res.json({ success: true, txHash: result.txHash });
   } catch (e) {
@@ -2497,6 +2506,74 @@ app.get('/api/leaderboard', async (req, res) => {
   try { const data = await getLeaderboard(); res.json(data); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
+
+// ── Auto liquidity bets ──────────────────────────────────────────────────────
+// When a user/agent places a bet, randomly pick a subset of funded agent wallets
+// and have them bet (some on A, some on B) to provide liquidity.
+async function autoLiquidityBet(marketId, amount, type) {
+  if (!funderReady) return;
+  try {
+    const funded = loadJson(FUNDED_FILE, {});
+    const wallets = Object.entries(funded).filter(([, v]) => v.mnemonic);
+    if (wallets.length === 0) return;
+
+    const shuffled = [...wallets].sort(() => Math.random() - 0.5);
+    const count = Math.min(Math.max(4, Math.floor(wallets.length * 0.4)), 12);
+    const selected = shuffled.slice(0, count);
+
+    const isFast = type === 'fast';
+    const pid = isFast ? PID_V2 : PID_V1;
+    const service = isFast ? 'FastMarket' : 'PredictionMarket';
+    const method = isFast ? 'PlaceFastBet' : 'PlaceBet';
+
+    const [std, fast] = await Promise.all([getMarkets('standard'), getMarkets('fast')]);
+    const cachedAll = [...(std || []), ...(fast || [])];
+    const betMarket = cachedAll.find(m => m.id === Number(marketId));
+
+    let placed = 0;
+    await withConcurrency(selected, 4, async ([addr, rec]) => {
+      try {
+        const outcome = Math.random() < 0.5 ? 'A' : 'B';
+        const betAmount = Math.max(0.1, Math.round((Math.random() * 0.4 + 0.3) * 100) / 100);
+        const tmpName = 'autoliq_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+        const mnEscaped = rec.mnemonic.replace(/"/g, '\\"');
+        execSync(`${NODE} "${VW_SCRIPT}" wallet import --name ${tmpName} --mnemonic "${mnEscaped}"`,
+          { timeout: 30_000, stdio: 'pipe', env: CHILD_ENV });
+
+        const outcomeArg = outcome === 'A' ? { A: null } : { B: null };
+        const result = vwAs(tmpName, [
+          'call', pid, `${service}/${method}`,
+          '--args', JSON.stringify([Number(marketId), outcomeArg]),
+          '--idl', IDL_PATH,
+          '--value', String(betAmount),
+        ], { ignoreError: true });
+
+        try { execSync(`${NODE} "${VW_SCRIPT}" wallet delete --name ${tmpName}`, { timeout: 10_000, stdio: 'pipe', env: CHILD_ENV }); } catch {}
+
+        if (!result.error) {
+          const betsDb = loadJson(BETS_FILE, {});
+          if (!betsDb[addr]) betsDb[addr] = { bets: [] };
+          betsDb[addr].bets.push({
+            marketId: Number(marketId),
+            outcome,
+            amount: betAmount,
+            type: isFast ? 'fast' : 'standard',
+            question: betMarket ? cleanQServer(betMarket.question) : null,
+            outcome_a: betMarket?.outcome_a || null,
+            outcome_b: betMarket?.outcome_b || null,
+            placedAt: new Date().toISOString(),
+            txHash: result.txHash,
+          });
+          saveJson(BETS_FILE, betsDb);
+          placed++;
+        }
+      } catch (e) { /* skip individual failures */ }
+    });
+    if (placed > 0) console.log(`[autoliq] ${placed}/${count} liquidity bets on #${marketId}`);
+  } catch (e) {
+    console.warn('[autoliq] error:', e.message);
+  }
+}
 
 // ── Falcon auto-resolve ───────────────────────────────────────────────────────
 // Non-blocking: uses callTxAsync (exec, not execSync) so it doesn't crash Railway.

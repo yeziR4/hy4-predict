@@ -377,6 +377,7 @@ function rankBadge(i) {
 }
 
 function renderTable() {
+  const myWallet = localStorage.getItem('hy4_wallet') || '';
   const sorted = [...lbData].sort((a, b) => {
     if (sortKey === 'totalPnl')       return b.totalPnl - a.totalPnl;
     if (sortKey === 'betCount')       return b.betCount - a.betCount;
@@ -403,7 +404,8 @@ function renderTable() {
     const fullLabel = rawId || addr;
     const barPct  = Math.round((a.staked / maxStaked) * 100);
 
-    return `<tr style="cursor:pointer" onclick="window.location='/agent.html?address=${encodeURIComponent(addr)}'">
+    const isMe = myWallet && addr.toLowerCase() === myWallet.toLowerCase();
+    return `<tr style="cursor:pointer${isMe ? ';outline:2px solid var(--primary);outline-offset:-2px;background:rgba(124,58,237,.06)' : ''}" onclick="window.location='/agent.html?address=${encodeURIComponent(addr)}'">
       <td>${rankBadge(i)}</td>
       <td class="agent-id" title="${fullLabel}">
         <div class="name" style="display:flex;align-items:center;gap:.4rem">${label} <span style="font-size:.65rem;color:var(--muted);opacity:.7">&#x2197;</span></div>
