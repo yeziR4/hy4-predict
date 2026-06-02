@@ -523,20 +523,19 @@ app.get('/api/agent/markets', async (req, res) => {
     try {
       const cat     = req.query.category;
       const nowTs   = Math.floor(Date.now() / 1000);
-      const catQueries = {
-        sports:   'sports nba nfl soccer football prediction markets polymarket',
-        politics: 'politics election president congress prediction markets polymarket',
-        ai:       'ai artificial intelligence gpt chatgpt openai prediction markets polymarket',
-        entertainment: 'entertainment movie oscar box office gaming celebrity prediction markets polymarket',
-      };
-      const catQuery = cat ? catQueries[cat] : null;
+      // Use a broad generic query — Heisenberg does full-text search, so specific
+      // queries like "ai artificial intelligence" can return 0 results.
+      // Instead we fetch a wide set and classify server-side.
+      const broadQuery = cat
+        ? `open prediction markets ${cat}`  // short, category hint only
+        : 'open prediction markets high volume';
       let minVol = 1000;
       let horizon = 7;
       if (cat === 'sports' || cat === 'politics' || cat === 'ai' || cat === 'entertainment') { minVol = 100; horizon = 30; }
       const limit   = Math.min(Number(req.query.limit) || 10, 50);
       const results = await fetchFalconMarkets({
         closed: false, minVolume: minVol, limit: 100,
-        query: catQuery || undefined,
+        query: broadQuery,
         endDateMin: nowTs, endDateMax: nowTs + (horizon * 86400),
       });
       const now     = Date.now();
@@ -545,11 +544,22 @@ app.get('/api/agent/markets', async (req, res) => {
           if (!m.question || m.question.length < 5) return false;
           if (cat) {
             const c = classifyQuestion(m.question);
-            // If no keyword match, include it anyway — Heisenberg query already narrowed it
-            if (!c) return true;
-            // Map internal category labels to user-facing ones
-            const catMap = { crypto: 'crypto', sports: 'sports', politics: 'world', ai: 'ai', entertainment: 'entertainment' };
-            return c === (catMap[cat] || cat);
+            if (c) {
+              const catMap = { crypto: 'crypto', sports: 'sports', politics: 'world', ai: 'ai', entertainment: 'entertainment' };
+              if (c !== (catMap[cat] || cat)) return false;
+            }
+            // If no keyword matched, try simple substring match as fallback
+            const catKeywords = {
+              sports: ['nba','nfl','soccer','football','mlb','nhl','ufc','fight','match','game','vs','tournament','championship','playoff','super bowl','world cup','olympic','tennis','f1','formula'],
+              politics: ['election','president','congress','senate','governor','vote','democrat','republican','gop','senator','campaign','political','party','debate','poll'],
+              ai: ['ai','artificial intelligence','gpt','chatgpt','openai','claude','gemini','llm','machine learning','neural','deep learning','robot','automation'],
+              entertainment: ['oscar','grammy','emmy','movie','film','netflix','celebrity','music','album','concert','gaming','esport','twitch','streaming','youtube','box office','marvel','dc'],
+            };
+            const kws = catKeywords[cat];
+            if (kws) {
+              const q = m.question.toLowerCase();
+              return kws.some(kw => q.includes(kw));
+            }
           }
           return true;
         })
@@ -1318,24 +1328,20 @@ app.get('/api/markets', async (req, res) => {
   if (FALCON_API_KEY) {
     try {
       const closed  = req.query.closed === 'true';
-      const cat     = req.query.category; // crypto | sports | politics | '' (all)
+      const cat     = req.query.category;
       const nowTs   = Math.floor(Date.now() / 1000);
-      // Use category-specific query for better results from Heisenberg
-      const catQueries = {
-        sports:   'sports nba nfl soccer football prediction markets polymarket',
-        politics: 'politics election president congress prediction markets polymarket',
-        ai:       'ai artificial intelligence gpt chatgpt openai prediction markets polymarket',
-        entertainment: 'entertainment movie oscar box office gaming celebrity prediction markets polymarket',
-      };
-      const catQuery = cat ? catQueries[cat] : null;
-      // Wider filters for non-crypto categories
+      // Broad query — Heisenberg full-text search is too strict per category.
+      // Fetch a wide set and classify server-side.
+      const broadQuery = cat
+        ? `open prediction markets ${cat}`
+        : 'open prediction markets trending';
       let minVol = 1000;
       let horizon = 7;
       if (cat === 'sports' || cat === 'politics' || cat === 'ai' || cat === 'entertainment') { minVol = 100; horizon = 30; }
       const limit   = Math.min(Number(req.query.limit) || 20, 50);
       const results = await fetchFalconMarkets({
         closed, minVolume: minVol, limit: 100,
-        query: catQuery || undefined,
+        query: broadQuery,
         endDateMin: closed ? nowTs - (90 * 86400) : nowTs,
         endDateMax: closed ? nowTs : nowTs + (horizon * 86400),
       });
@@ -1346,11 +1352,22 @@ app.get('/api/markets', async (req, res) => {
           if (!m.question || m.question.length < 5) return false;
           if (cat) {
             const c = classifyQuestion(m.question);
-            // If no keyword match, include it anyway — Heisenberg query already narrowed it
-            if (!c) return true;
-            // Map internal category labels to user-facing ones
-            const catMap = { crypto: 'crypto', sports: 'sports', politics: 'world', ai: 'ai', entertainment: 'entertainment' };
-            return c === (catMap[cat] || cat);
+            if (c) {
+              const catMap = { crypto: 'crypto', sports: 'sports', politics: 'world', ai: 'ai', entertainment: 'entertainment' };
+              if (c !== (catMap[cat] || cat)) return false;
+            }
+            // Fallback: simple substring check
+            const catKeywords = {
+              sports: ['nba','nfl','soccer','football','mlb','nhl','ufc','fight','match','game','vs','tournament','championship','playoff','super bowl','world cup','olympic','tennis','f1','formula'],
+              politics: ['election','president','congress','senate','governor','vote','democrat','republican','gop','senator','campaign','political','party','debate','poll'],
+              ai: ['ai','artificial intelligence','gpt','chatgpt','openai','claude','gemini','llm','machine learning','neural','deep learning','robot','automation'],
+              entertainment: ['oscar','grammy','emmy','movie','film','netflix','celebrity','music','album','concert','gaming','esport','twitch','streaming','youtube','box office','marvel','dc'],
+            };
+            const kws = catKeywords[cat];
+            if (kws) {
+              const q = m.question.toLowerCase();
+              return kws.some(kw => q.includes(kw));
+            }
           }
           return true;
         })
