@@ -337,16 +337,54 @@ const ONCHAIN_ORACLES = [
   { name: 'oracle-prime', pid: '0x10358b71e255cbbc9da5bda8535f7a79b7d1349f4f143fed45adeaba958b51a2' },
 ];
 
+// CoinGecko price cache — avoids 429 rate limits
+const _priceCache = { data: null, ts: 0, TTL: 30_000 };
+const CG_IDS = 'bitcoin,ethereum,solana,dogecoin,cardano,polkadot';
+const CG_URL = `https://api.coingecko.com/api/v3/simple/price?ids=${CG_IDS}&vs_currencies=usd`;
+
+async function fetchCachedPrices() {
+  const now = Date.now();
+  if (_priceCache.data && (now - _priceCache.ts) < _priceCache.TTL) return _priceCache.data;
+  try {
+    const cg = await fetch(CG_URL, { signal: AbortSignal.timeout(8_000) });
+    if (!cg.ok) throw new Error(`CoinGecko ${cg.status}`);
+    const prices = await cg.json();
+    _priceCache.data = {
+      btc: prices?.bitcoin?.usd || 0,
+      eth: prices?.ethereum?.usd || 0,
+      sol: prices?.solana?.usd || 0,
+      doge: prices?.dogecoin?.usd || 0,
+      ada: prices?.cardano?.usd || 0,
+      dot: prices?.polkadot?.usd || 0,
+    };
+    _priceCache.ts = now;
+    return _priceCache.data;
+  } catch {
+    // Return stale prices if available, otherwise zeros
+    if (_priceCache.data) return _priceCache.data;
+    return { btc: 0, eth: 0, sol: 0, doge: 0, ada: 0, dot: 0 };
+  }
+}
+
 async function fetchPrice(symbol) {
-  const coinMap = { BTC: 'bitcoin', ETH: 'ethereum', SOL: 'solana', VARA: 'vara-network', DOT: 'polkadot', DOGE: 'dogecoin', ADA: 'cardano' };
-  const coinId  = coinMap[symbol.toUpperCase()];
-  if (!coinId) throw new Error(`Unsupported symbol: ${symbol}. Supported: ${Object.keys(coinMap).join(', ')}`);
-  const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`,
-    { signal: AbortSignal.timeout(8_000) });
-  if (!r.ok) throw new Error('Price fetch failed: HTTP ' + r.status);
-  const d = await r.json();
-  const priceUsd = d[coinId]?.usd;
-  if (!priceUsd) throw new Error(`No price data for ${symbol}`);
+  const prices = await fetchCachedPrices();
+  const coinMap = { BTC: 'btc', ETH: 'eth', SOL: 'sol', VARA: null, DOT: 'dot', DOGE: 'doge', ADA: 'ada' };
+  const key = coinMap[symbol.toUpperCase()];
+  if (!key) throw new Error(`Unsupported symbol: ${symbol}. Supported: ${Object.keys(coinMap).join(', ')}`);
+  // VARA price needs separate fetch
+  if (key === null) {
+    try {
+      const r = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=vara-network&vs_currencies=usd',
+        { signal: AbortSignal.timeout(8_000) });
+      if (r.ok) {
+        const d = await r.json();
+        const priceUsd = d?.['vara-network']?.usd || 0;
+        return { priceUsd, priceMicroUsd: Math.round(priceUsd * 1_000_000), source: 'coingecko' };
+      }
+    } catch {}
+    return { priceUsd: 0, priceMicroUsd: 0, source: 'coingecko' };
+  }
+  const priceUsd = prices[key] || 0;
   return { priceUsd, priceMicroUsd: Math.round(priceUsd * 1_000_000), source: 'coingecko' };
 }
 
@@ -1252,19 +1290,8 @@ app.get('/api/markets', async (req, res) => {
   // Fast markets — CoinGecko-based live crypto price predictions
   if (type === 'fast') {
     try {
-      // Fetch live prices from CoinGecko
-      const cg = await fetch(
-        'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,dogecoin,cardano,polkadot&vs_currencies=usd',
-        { signal: AbortSignal.timeout(8_000) }
-      );
-      if (!cg.ok) throw new Error(`CoinGecko ${cg.status}`);
-      const prices = await cg.json();
-      const btc = prices?.bitcoin?.usd;
-      const eth = prices?.ethereum?.usd;
-      const sol = prices?.solana?.usd;
-      const doge = prices?.dogecoin?.usd;
-      const ada = prices?.cardano?.usd;
-      const dot = prices?.polkadot?.usd;
+      const prices = await fetchCachedPrices();
+      const btc = prices.btc, eth = prices.eth, sol = prices.sol, doge = prices.doge, ada = prices.ada, dot = prices.dot;
 
       const fastMarkets = [
         {
@@ -1319,13 +1346,15 @@ app.get('/api/markets', async (req, res) => {
       return res.json(fastMarkets);
     } catch (e) {
       console.warn('[markets] CoinGecko error:', e.message);
+      // Use last known prices from cache if available
+      const stale = _priceCache.data || {};
       return res.json([
-        { id: -101, question: 'Will Bitcoin be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'BTC', currentPrice: null, closingLabel: '5 min' },
-        { id: -102, question: 'Will Ethereum be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'ETH', currentPrice: null, closingLabel: '5 min' },
-        { id: -103, question: 'Will Solana be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'SOL', currentPrice: null, closingLabel: '5 min' },
-        { id: -104, question: 'Will Dogecoin be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'DOGE', currentPrice: null, closingLabel: '5 min' },
-        { id: -105, question: 'Will Cardano be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'ADA', currentPrice: null, closingLabel: '5 min' },
-        { id: -106, question: 'Will Polkadot be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'DOT', currentPrice: null, closingLabel: '5 min' },
+        { id: -101, question: 'Will Bitcoin be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'BTC', currentPrice: stale.btc || null, closingLabel: '5 min' },
+        { id: -102, question: 'Will Ethereum be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'ETH', currentPrice: stale.eth || null, closingLabel: '5 min' },
+        { id: -103, question: 'Will Solana be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'SOL', currentPrice: stale.sol || null, closingLabel: '5 min' },
+        { id: -104, question: 'Will Dogecoin be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'DOGE', currentPrice: stale.doge || null, closingLabel: '5 min' },
+        { id: -105, question: 'Will Cardano be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'ADA', currentPrice: stale.ada || null, closingLabel: '5 min' },
+        { id: -106, question: 'Will Polkadot be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'DOT', currentPrice: stale.dot || null, closingLabel: '5 min' },
       ]);
     }
   }
