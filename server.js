@@ -1643,6 +1643,7 @@ app.get('/api/bets/:address', async (req, res) => {
           winning_outcome: winOut || null,
           type: bet.type || 'standard',
           placedAt: bet.placedAt,
+          txHash: bet.txHash || null,
         });
       } else {
         bets.push({
@@ -1654,6 +1655,7 @@ app.get('/api/bets/:address', async (req, res) => {
           winning_outcome: null,
           type: bet.type || 'standard',
           placedAt: bet.placedAt,
+          txHash: bet.txHash || null,
         });
       }
     }
