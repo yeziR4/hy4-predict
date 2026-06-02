@@ -1475,8 +1475,24 @@ app.post('/api/bet', async (req, res) => {
 
   try {
     // Resolve Falcon market IDs (negative synthetic IDs → real on-chain market)
+    // Skip for fast markets which use hardcoded negative IDs (-101..-106)
     let resolvedMarketId = marketId;
-    if (typeof marketId === 'number' && marketId < 0) {
+    const FM_SYMBOLS = { '-101': 'BTC', '-102': 'ETH', '-103': 'SOL', '-104': 'DOGE', '-105': 'ADA', '-106': 'DOT' };
+    if (type === 'fast') {
+      // Fast markets with negative IDs need on-chain market creation
+      const sym = FM_SYMBOLS[String(marketId)];
+      if (sym) {
+        const { priceUsd, priceMicroUsd } = await fetchPrice(sym);
+        const question = `Will ${sym} be higher in 50 blocks? (opens at $${priceUsd.toLocaleString()})`;
+        const createResult = callTx(funderName(), PID_V2, 'FastMarket/CreateFastMarket',
+          [question, sym, priceMicroUsd, 50], null);
+        if (createResult.error) throw new Error('Fast market creation failed: ' + createResult.error);
+        resolvedMarketId = createResult.result ?? createResult.events?.find(e => e.type === 'FastMarketCreated')?.data?.market_id;
+        if (resolvedMarketId == null) throw new Error('Could not determine new fast market ID');
+        // Bust fast market cache so it appears on next refresh
+        cache.ts.fast = 0;
+      }
+    } else if (typeof marketId === 'number' && marketId < 0) {
       resolvedMarketId = await resolveFalconMarketId(marketId);
     } else if (typeof marketId === 'string' && marketId.startsWith('-')) {
       resolvedMarketId = await resolveFalconMarketId(Number(marketId));
@@ -1574,11 +1590,46 @@ app.post('/api/claim', (req, res) => {
 app.get('/api/bets/:address', async (req, res) => {
   const { address } = req.params;
   try {
+    // Always include bets from tracked data (bets.json)
+    const betsDb = loadJson(BETS_FILE, {});
+    const trackedBets = betsDb[address]?.bets || [];
+
     const [std, fast] = await Promise.all([getMarkets('standard'), getMarkets('fast')]);
+    const marketMap = {};
+    [...std, ...fast].forEach(m => { marketMap[String(m.id)] = m; });
     const bets = [];
 
-    // Scan only the 15 most recent standard + 8 most recent fast markets.
-    // Each query spawns a child process (3-5s); 23 tasks at concurrency 8 ≈ 15-20s total.
+    // Add tracked bets from bets.json
+    for (const bet of trackedBets) {
+      const market = marketMap[String(bet.marketId)];
+      if (market) {
+        const status   = market.status?.kind ?? market.status;
+        const winOut   = market.winning_outcome?.kind ?? market.winning_outcome;
+        bets.push({
+          marketId: bet.marketId,
+          question: bet.question || market.question,
+          outcome: bet.outcome,
+          amount: bet.amount,
+          status,
+          winning_outcome: winOut || null,
+          type: bet.type || 'standard',
+          placedAt: bet.placedAt,
+        });
+      } else {
+        bets.push({
+          marketId: bet.marketId,
+          question: bet.question || null,
+          outcome: bet.outcome,
+          amount: bet.amount,
+          status: 'Unknown',
+          winning_outcome: null,
+          type: bet.type || 'standard',
+          placedAt: bet.placedAt,
+        });
+      }
+    }
+
+    // Also query on-chain for open markets (real-time verification)
     const byIdDesc = (a, b) => Number(b.id) - Number(a.id);
     const stdFiltered  = std.filter(m => m.status === 'Open').sort(byIdDesc).slice(0, 15);
     const fastFiltered = fast.filter(m => m.status === 'Open').sort(byIdDesc).slice(0, 8);
@@ -1590,11 +1641,17 @@ app.get('/api/bets/:address', async (req, res) => {
 
     await withConcurrency(tasks, 8, async ({ m, pid, method, type }) => {
       const r = await callQuery(pid, method, [m.id, address]);
-      if (r?.result) bets.push({
-        marketId: m.id, question: m.question,
-        outcome: r.result[0], amount: planckToVara(r.result[1]),
-        status: m.status, winning_outcome: m.winning_outcome, type
-      });
+      if (r?.result) {
+        // Deduplicate with tracked bets
+        const existing = bets.find(b => b.marketId === m.id && b.outcome === (r.result[0]));
+        if (!existing) {
+          bets.push({
+            marketId: m.id, question: m.question,
+            outcome: r.result[0], amount: planckToVara(r.result[1]),
+            status: m.status, winning_outcome: m.winning_outcome, type, placedAt: null,
+          });
+        }
+      }
     });
 
     res.json(bets);
