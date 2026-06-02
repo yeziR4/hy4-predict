@@ -1332,7 +1332,6 @@ app.get('/api/markets', async (req, res) => {
   }
 
   // On-chain Vara markets (only if Falcon not configured)
-  const type = req.query.type === 'fast' ? 'fast' : 'standard';
   const includeStale = req.query.includeStale === 'true';
   try {
     const markets = await getMarkets(type);
