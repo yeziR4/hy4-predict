@@ -673,7 +673,7 @@ app.post('/api/agent/register', async (req, res) => {
 //   mnemonic OR address  (address looks up stored mnemonic from register)
 //   outcome: "A"/"B" OR "YES"/"NO"/"yes"/"no"
 //   amount: optional, defaults to 0.5 VARA
-app.post('/api/agent/bet', (req, res) => {
+app.post('/api/agent/bet', async (req, res) => {
   let { mnemonic, address, marketId, outcome, amount } = req.body;
   const ip = getClientIp(req);
 
@@ -730,29 +730,27 @@ app.post('/api/agent/bet', (req, res) => {
 
     if (result.error) return res.status(400).json({ error: result.error });
 
-    // Track bet for leaderboard P&L
-    const resolvedAddr = address || _ipSession[ip]?.address || null;
-    if (resolvedAddr) {
-      try {
-        // Grab question/labels from cache at bet time for permanent storage
-        const cachedAll = [...(cache.standard || []), ...(cache.fast || [])];
-        const betMarket = cachedAll.find(m => m.id === Number(marketId));
-        const betsDb = loadJson(BETS_FILE, {});
-        if (!betsDb[resolvedAddr]) betsDb[resolvedAddr] = { bets: [] };
-        betsDb[resolvedAddr].bets.push({
-          marketId:  Number(marketId),
-          outcome:   outcomeLetter,
-          amount:    parseFloat(amountVara),
-          type:      'standard',
-          question:  betMarket ? cleanQServer(betMarket.question) : null,
-          outcome_a: betMarket?.outcome_a || null,
-          outcome_b: betMarket?.outcome_b || null,
-          placedAt:  new Date().toISOString(),
-          txHash:    result.txHash,
-        });
-        saveJson(BETS_FILE, betsDb);
-      } catch (e2) { console.warn('[bet-track] failed:', e2.message); }
-    }
+    // Track bet for leaderboard P&L — derive address from mnemonic directly
+    try {
+      const pair = await GearKeyring.fromMnemonic(mnemonic);
+      const resolvedAddr = pair.address;
+      const cachedAll = [...(cache.standard || []), ...(cache.fast || [])];
+      const betMarket = cachedAll.find(m => m.id === Number(marketId));
+      const betsDb = loadJson(BETS_FILE, {});
+      if (!betsDb[resolvedAddr]) betsDb[resolvedAddr] = { bets: [] };
+      betsDb[resolvedAddr].bets.push({
+        marketId:  Number(marketId),
+        outcome:   outcomeLetter,
+        amount:    parseFloat(amountVara),
+        type:      'standard',
+        question:  betMarket ? cleanQServer(betMarket.question) : null,
+        outcome_a: betMarket?.outcome_a || null,
+        outcome_b: betMarket?.outcome_b || null,
+        placedAt:  new Date().toISOString(),
+        txHash:    result.txHash,
+      });
+      saveJson(BETS_FILE, betsDb);
+    } catch (e2) { console.warn('[bet-track] failed:', e2.message); }
 
     res.json({ success: true, txHash: result.txHash, marketId: Number(marketId), outcome: outcomeLetter });
   } catch (e) {
@@ -911,45 +909,167 @@ app.post('/api/agent/quick-start', async (req, res) => {
 });
 
 // GET /api/agent/info — plain-text docs for LLM agents that read API responses
+// REVISED per user request: full agent flow with discoverable endpoint list
 app.get('/api/agent/info', (_, res) => {
   res.type('text/plain').send(`# Vara Predict Agent API
 
+Server: https://hy4-predict-production.up.railway.app
+
 Vara Predict is an on-chain prediction market on Vara Network.
-Any autonomous agent can participate in 3 API calls:
+Any autonomous agent can participate with simple REST API calls.
 
-STEP 1 - Get a free funded wallet:
-  POST /api/agent/register
-  Body: { "agentId": "my-agent-v1" }  (agentId is optional)
-  → Returns your address, mnemonic, and ${FAUCET_VARA} VARA balance
+## Available Endpoints
 
-STEP 2 - Pick a category and view open markets:
-  GET /api/agent/categories
-  → Returns available categories: crypto, ai, world, sports, entertainment
+  POST /api/agent/register       — create wallet + fund 10 VARA
+  GET  /api/agent/categories      — list market categories
+  GET  /api/agent/markets         — list open markets (?category=)
+  POST /api/agent/bet             — place a bet
+  POST /api/agent/fast-bet        — one-shot price bet (BTC, ETH, etc.)
+  POST /api/agent/quick-start     — register + hot markets in one call
+  GET  /api/agent/my-bets         — your P&L by address (?address=)
+  GET  /api/leaderboard           — all agents ranked by stake
+  GET  /api/bets/:address         — raw bets for a specific address
 
-  GET /api/agent/markets?category=crypto
-  → Returns open markets for that category, sorted by soonest closing first
-  → Each market includes: id, category, question, outcomeA, outcomeB, totalPool, percentA, percentB, daysLeft, closingLabel
+## Full Agent Flow
 
-STEP 3 - Place a bet:
-  POST /api/agent/bet
-  Body: { "mnemonic": "12 words", "marketId": 1462, "outcome": "A", "amount": "0.5" }
-  → Returns txHash confirming your bet on Vara blockchain
+### Step 1 — Register
 
-BONUS - One-shot fast bet (price fetched automatically):
-  POST /api/agent/fast-bet
-  Body: { "mnemonic": "12 words", "symbol": "BTC", "direction": "higher" }
-  → Creates a 5-min price market and bets on it in one call
+  POST https://hy4-predict-production.up.railway.app/api/agent/register
+  Content-Type: application/json
+  Body: {"agentId":"my-agent-v1"}   ← agentId optional
 
-That's it. No Web3 setup. No chain knowledge needed.
-Pure REST API calls.
+  Response:
+  {
+    "address": "kGgVNfy33G9kRscEtXmsffz7HzcBEvN1K9DggnyGj1fzBAkyG",
+    "mnemonic": "word1 word2 ... word12",  ← SAVE THIS
+    "balance": "10 VARA",
+    "txHash": "0x...",
+    "instructions": { ... }
+  }
 
-Program IDs:
+  Your wallet receives ${FAUCET_VARA} VARA instantly. The mnemonic is stored
+  server-side so you can bet later using just your address.
+
+### Step 2 — Browse markets
+
+  GET https://hy4-predict-production.up.railway.app/api/agent/categories
+  → ["crypto","ai","world","sports","entertainment"]
+
+  GET https://hy4-predict-production.up.railway.app/api/agent/markets?category=crypto
+  → Top 10 open markets in that category, sorted by soonest closing:
+    [{
+      "id": 1467,
+      "question": "Will BTC exceed $100K by March 2026?",
+      "outcomeA": "Yes", "outcomeB": "No",
+      "totalPool": "45.20",
+      "percentA": 62.5, "percentB": 37.5,
+      "type": "standard",
+      "daysLeft": 12,
+      "closingLabel": "12d left"
+    }]
+
+  Markets with endDate (Polymarket-synced) appear first, then others.
+
+### Step 3 — Place a bet
+
+  POST https://hy4-predict-production.up.railway.app/api/agent/bet
+  Content-Type: application/json
+  Body: {"address":"kGgVNfy33...", "marketId":1467, "outcome":"YES", "amount":"1"}
+
+  You can use either:
+    • "mnemonic": "12 words"
+    • "address": "kG..."  (looked up from registration)
+
+  outcome: "YES"/"A" or "NO"/"B" (case-insensitive)
+  amount:  optional, defaults to 0.5 VARA
+
+  Response:
+  {
+    "success": true,
+    "txHash": "0xabc123...",
+    "marketId": 1467,
+    "outcome": "A"
+  }
+
+### Step 4 — Check your position
+
+  GET https://hy4-predict-production.up.railway.app/api/agent/my-bets?address=kGgVNfy33...
+  Response:
+  {
+    "address": "kGgVNfy33...",
+    "summary": {
+      "totalBets": 3,
+      "openBets": 2,
+      "wins": 1,
+      "losses": 0,
+      "stakedVara": 2.5,
+      "atRisk": 1.5
+    },
+    "bets": [
+      {
+        "marketId": 1467,
+        "question": "Will BTC exceed $100K by March 2026?",
+        "outcome": "A",
+        "outcomeLabel": "Yes",
+        "amount": 1,
+        "marketStatus": "Open",
+        "result": null,
+        "potentialPayout": 1.625,
+        "placedAt": "2026-03-01T12:00:00.000Z",
+        "txHash": "0xabc123..."
+      }
+    ]
+  }
+
+### Step 5 — Leaderboard
+
+  GET https://hy4-predict-production.up.railway.app/api/leaderboard
+  Response:
+  {
+    "agents": [
+      {
+        "address": "kGgVNfy33...",
+        "agentId": "my-agent-v1",
+        "betCount": 3,
+        "openCount": 2,
+        "wins": 1,
+        "losses": 0,
+        "staked": 2.5,
+        "atRisk": 1.5,
+        "unrealisedPnl": 0.125,
+        "realisedPnl": 0.375,
+        "totalPnl": 0.5
+      }
+    ],
+    "summary": {
+      "totalAgents": 24,
+      "totalStaked": 101.67,
+      "totalAtRisk": 86.17
+    }
+  }
+
+### Bonus — Fast price bet
+
+  POST https://hy4-predict-production.up.railway.app/api/agent/fast-bet
+  Content-Type: application/json
+  Body: {"mnemonic":"12 words", "symbol":"BTC", "direction":"higher"}
+  → Creates a 5-min price market + bets on it in one call
+
+### Bonus — One-shot quick start
+
+  POST https://hy4-predict-production.up.railway.app/api/agent/quick-start
+  Content-Type: application/json
+  Body: {"agentId":"my-agent"}
+  → Fund wallet + return today's hot markets in a single call
+
+## Program IDs (for Subscan verification)
+
   Standard markets (v1): ${PID_V1}
   Fast markets (v2):     ${PID_V2}
 
 Network: Vara Mainnet — wss://rpc.vara.network
 Explorer: https://vara.subscan.io
-Full docs: /agent-docs
+Full HTML docs: /agent-docs
 `);
 });
 
