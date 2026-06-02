@@ -522,7 +522,11 @@ app.get('/api/agent/markets', async (req, res) => {
     try {
       const minVol  = Number(req.query.min_volume) || 1000;
       const limit   = Math.min(Number(req.query.limit) || 10, 50);
-      const results = await fetchFalconMarkets({ closed: false, minVolume: minVol, limit: limit * 2 });
+      const nowTs   = Math.floor(Date.now() / 1000);
+      const results = await fetchFalconMarkets({
+        closed: false, minVolume: minVol, limit: limit * 2,
+        endDateMin: nowTs, endDateMax: nowTs + (7 * 86400),
+      });
       const now     = Date.now();
       const mapped  = results
         .filter(m => !m.closed)
@@ -551,11 +555,12 @@ app.get('/api/agent/markets', async (req, res) => {
         });
       return res.json(mapped);
     } catch (e) {
-      console.warn('[agent/markets] Falcon failed, falling back:', e.message);
+      console.warn('[agent/markets] Falcon failed:', e.message);
+      return res.status(502).json({ error: 'Falcon API unavailable', detail: e.message });
     }
   }
 
-  // Fallback: on-chain Vara markets
+  // On-chain Vara markets (only if Falcon not configured)
   try {
     const [std, fast] = await Promise.all([getMarkets('standard'), getMarkets('fast')]);
     const meta = loadJson(MARKETS_META_FILE, {});
@@ -1205,7 +1210,12 @@ app.get('/api/markets', async (req, res) => {
       const closed  = req.query.closed === 'true';
       const minVol  = Number(req.query.min_volume) || 1000;
       const limit   = Math.min(Number(req.query.limit) || 20, 50);
-      const results = await fetchFalconMarkets({ closed: closed, minVolume: minVol, limit: limit * 2 });
+      const nowTs   = Math.floor(Date.now() / 1000);
+      const results = await fetchFalconMarkets({
+        closed, minVolume: minVol, limit: limit * 2,
+        endDateMin: closed ? nowTs - (30 * 86400) : nowTs,
+        endDateMax: closed ? nowTs : nowTs + (7 * 86400),
+      });
       const now     = Date.now();
       const mapped  = results.map((m, i) => {
         const endMs  = m.end_date ? new Date(m.end_date).getTime() : null;
@@ -1232,12 +1242,12 @@ app.get('/api/markets', async (req, res) => {
       });
       return res.json(mapped);
     } catch (e) {
-      // Fallback to on-chain markets if Falcon fails
-      console.warn('[markets] Falcon failed, falling back to chain:', e.message);
+      console.warn('[markets] Falcon failed:', e.message);
+      return res.status(502).json({ error: 'Falcon API unavailable', detail: e.message });
     }
   }
 
-  // On-chain Vara markets (default / fallback)
+  // On-chain Vara markets (only if Falcon not configured)
   const type = req.query.type === 'fast' ? 'fast' : 'standard';
   const includeStale = req.query.includeStale === 'true';
   try {
@@ -1707,24 +1717,24 @@ app.post('/api/admin/manual-resolve', async (req, res) => {
 // In-memory cache for Falcon markets so bet flows can resolve synthetic IDs
 const _falconCache = { markets: [], ts: 0, TTL: 60_000 };
 
-async function fetchFalconMarkets({ closed = false, minVolume = 1000, lookbackDays = 30, limit = 100 } = {}) {
+async function fetchFalconMarkets({ closed = false, minVolume = 1000, lookbackDays = 30, limit = 100, endDateMax, endDateMin } = {}) {
   if (!FALCON_API_KEY) throw new Error('FALCON_API_KEY not configured — set env var');
   const now = Math.floor(Date.now() / 1000);
-  const endMin = closed ? now - (lookbackDays * 86400) : now;
-  const endMax = closed ? now : now + (lookbackDays * 86400);
+  // Use provided filters or compute defaults
+  const eMin = endDateMin ?? (closed ? now - (lookbackDays * 86400) : now);
+  const eMax = endDateMax ?? (closed ? now : now + (lookbackDays * 86400));
   const r = await fetch(FALCON_API_URL, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${FALCON_API_KEY}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       agent_id: 574,
-      query: closed ? 'resolved prediction markets winning outcome' : 'active prediction markets high volume polymarket trending',
+      query: closed ? 'resolved prediction markets winning outcome' : 'active prediction markets ending soon high volume polymarket',
       params: {
         closed: closed ? 'True' : 'False',
         min_volume: String(minVolume),
-        duration: '24h',
         vertical: 'prediction_markets',
-        end_date_min: endMin,
-        end_date_max: endMax,
+        end_date_min: String(eMin),
+        end_date_max: String(eMax),
       },
       pagination: { limit, offset: 0 },
       formatter_config: { format_type: 'raw' },
@@ -2356,6 +2366,46 @@ async function autoResolveFalconMarkets() {
   }
 }
 
+// ── Falcon auto-sync new markets ─────────────────────────────────────────────
+const FALCON_SYNC_INTERVAL = 30 * 60 * 1000; // 30 minutes
+async function autoSyncFalconMarkets() {
+  if (!FALCON_API_KEY || !funderReady) return;
+  try {
+    const nowTs = Math.floor(Date.now() / 1000);
+    const results = await fetchFalconMarkets({
+      closed: false, minVolume: 2000, limit: 20,
+      endDateMin: nowTs, endDateMax: nowTs + (7 * 86400),
+    });
+    const map = loadJson(FALCON_MARKET_MAP_FILE, {});
+    let count = 0;
+    for (const m of results) {
+      const cid = m.condition_id;
+      if (!cid || map[cid]) continue;
+      const q = (m.question || '').trim();
+      if (!q || q.length < 5) continue;
+      try {
+        const outA = m.side_a_outcome || 'Yes';
+        const outB = m.side_b_outcome || 'No';
+        const result = callTx(funderName(), PID_V1, 'PredictionMarket/CreateMarket', [q, outA, outB], null);
+        if (result.error) { console.warn(`[falcon-sync] create failed for "${q.slice(0, 40)}": ${result.error}`); continue; }
+        const marketId = result.result ?? result.events?.find(e => e.type === 'MarketCreated')?.data?.market_id;
+        if (marketId == null) continue;
+        map[cid] = { varaMarketId: marketId, question: q, createdAt: new Date().toISOString() };
+        saveJson(FALCON_MARKET_MAP_FILE, map);
+        const sync = loadJson(POLY_SYNC_FILE, {});
+        sync[String(marketId)] = { polymarketId: cid, question: q, outcomeALabel: outA, outcomeBLabel: outB, createdAt: new Date().toISOString(), resolved: false, source: 'falcon-auto' };
+        saveJson(POLY_SYNC_FILE, sync);
+        cache.ts.standard = 0; cache.ts.fast = 0;
+        count++;
+        console.log(`[falcon-sync] synced "${q.slice(0, 50)}" → #${marketId}`);
+      } catch (e2) { /* skip individual failures */ }
+    }
+    if (count > 0) console.log(`[falcon-sync] synced ${count} new markets to chain`);
+  } catch (e) {
+    if (!e.message.includes('timeout')) console.warn('[falcon-sync] error:', e.message);
+  }
+}
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 setupFunder();
 app.listen(PORT, () => {
@@ -2365,6 +2415,10 @@ app.listen(PORT, () => {
     // Auto-resolve Falcon-synced markets every 5 minutes (non-blocking)
     autoResolveFalconMarkets(); // run once immediately
     setInterval(autoResolveFalconMarkets, FALCON_RESOLVE_INTERVAL);
-    console.log(`[falcon-auto] watching for resolved markets every ${FALCON_RESOLVE_INTERVAL/60000}min`);
+    console.log(`[falcon-auto] resolve cron every ${FALCON_RESOLVE_INTERVAL/60000}min`);
+    // Auto-sync new Falcon markets every 30 minutes
+    autoSyncFalconMarkets(); // run once immediately
+    setInterval(autoSyncFalconMarkets, FALCON_SYNC_INTERVAL);
+    console.log(`[falcon-auto] sync cron every ${FALCON_SYNC_INTERVAL/60000}min`);
   }
 });
