@@ -806,6 +806,27 @@ app.post('/api/agent/fast-bet', async (req, res) => {
     try { execSync(`${NODE} "${VW_SCRIPT}" wallet delete --name ${tmpName}`, { timeout: 10_000, stdio: 'pipe', env: CHILD_ENV }); } catch {}
 
     if (betResult.error) return res.status(400).json({ error: betResult.error });
+
+    // Track fast-bet for leaderboard
+    try {
+      const pair = await GearKeyring.fromMnemonic(mnemonic);
+      const addr = pair.address;
+      const betsDb = loadJson(BETS_FILE, {});
+      if (!betsDb[addr]) betsDb[addr] = { bets: [] };
+      betsDb[addr].bets.push({
+        marketId:  Number(marketId),
+        outcome:   dir === 'higher' ? 'A' : 'B',
+        amount:    0.5,
+        type:      'fast',
+        question:  question,
+        outcome_a: 'Higher',
+        outcome_b: 'Lower',
+        placedAt:  new Date().toISOString(),
+        txHash:    betResult.txHash,
+      });
+      saveJson(BETS_FILE, betsDb);
+    } catch {}
+
     res.json({
       success:          true,
       txHash:           betResult.txHash,

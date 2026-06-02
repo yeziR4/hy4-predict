@@ -41,3 +41,7 @@ hy4-predict/
 
 # funded mnemonics
 funded.json
+
+# Runtime state — resets per deploy, never committed
+bets.json
+ip-session.json
