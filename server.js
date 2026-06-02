@@ -60,6 +60,7 @@ const POLY_CAT_KEYWORDS = {
   ai:            /\b(gpt|chatgpt|openai|claude|anthropic|gemini|google ai|mistral|llama|deepmind|ai model|large language|llm|artificial intelligence|machine learning|neural network|diffusion model|sora|midjourney|stable diffusion|ai.?agent|agi|superintelligence|copilot|cursor|coding ai)\b/i,
   sports:        /\b(nba|nfl|mlb|nhl|premier league|champions league|world cup|super bowl|ufc|mma|wimbledon|us open|masters|formula.?1|f1|nascar|olympics|fifa|championship|tournament|playoffs|finals|season|mvp|transfer|draft)\b/i,
   entertainment: /\b(oscar|grammy|emmy|golden globe|box office|movie|film|netflix|disney|marvel|dc comics|celebrity|kardashian|taylor swift|beyonce|album|billboard|streaming|spotify|youtube|twitch|gaming|esports|video game)\b/i,
+  weather:       /\b(weather|temperature|hurricane|tornado|earthquake|flood|rain|snow|storm|climate|global warming|el niño|la niña|drought|wildfire|heatwave|freeze|ice|hail|wind|thunderstorm|blizzard|cyclone|typhoon)\b/i,
   world:         /\b(election|president|congress|senate|prime minister|parliament|war|ceasefire|nato|ukraine|russia|china|taiwan|iran|israel|gaza|inflation|gdp|recession|federal reserve|fed rate|interest rate|oil price|gold price|crude|brent|commodity|trade war|tariff|sanctions)\b/i,
 };
 
@@ -523,14 +524,14 @@ app.get('/api/agent/markets', async (req, res) => {
       const cat     = req.query.category;
       const nowTs   = Math.floor(Date.now() / 1000);
       const catQueries = {
-        crypto:   'crypto bitcoin ethereum solana prediction markets polymarket',
         sports:   'sports nba nfl soccer football prediction markets polymarket',
         politics: 'politics election president prediction markets polymarket',
+        weather:  'weather hurricane tornado temperature climate prediction markets polymarket',
       };
       const catQuery = cat ? catQueries[cat] : null;
       let minVol = 1000;
       let horizon = 7;
-      if (cat === 'sports' || cat === 'politics') { minVol = 100; horizon = 30; }
+      if (cat === 'sports' || cat === 'politics' || cat === 'weather') { minVol = 100; horizon = 30; }
       const limit   = Math.min(Number(req.query.limit) || 10, 50);
       const results = await fetchFalconMarkets({
         closed: false, minVolume: minVol, limit: 100,
@@ -1288,15 +1289,15 @@ app.get('/api/markets', async (req, res) => {
       const nowTs   = Math.floor(Date.now() / 1000);
       // Use category-specific query for better results from Heisenberg
       const catQueries = {
-        crypto:   'crypto bitcoin ethereum solana prediction markets polymarket',
         sports:   'sports nba nfl soccer football prediction markets polymarket',
         politics: 'politics election president prediction markets polymarket',
+        weather:  'weather hurricane tornado temperature climate prediction markets polymarket',
       };
       const catQuery = cat ? catQueries[cat] : null;
-      // Wider filters for sports/politics (lower min volume, longer horizon)
+      // Wider filters for non-crypto categories
       let minVol = 1000;
       let horizon = 7;
-      if (cat === 'sports' || cat === 'politics') { minVol = 100; horizon = 30; }
+      if (cat === 'sports' || cat === 'politics' || cat === 'weather') { minVol = 100; horizon = 30; }
       const limit   = Math.min(Number(req.query.limit) || 20, 50);
       const results = await fetchFalconMarkets({
         closed, minVolume: minVol, limit: 100,

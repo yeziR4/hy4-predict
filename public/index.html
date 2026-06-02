@@ -82,9 +82,9 @@
     </div>
     <div style="margin-bottom:1.5rem">
       <div style="display:flex;gap:.5rem;flex-wrap:wrap" id="cat-tabs">
-        <button class="tab-btn active" data-cat="crypto" onclick="switchCat('crypto')">🪙 Crypto</button>
-        <button class="tab-btn" data-cat="sports" onclick="switchCat('sports')">⚽ Sports</button>
+        <button class="tab-btn active" data-cat="sports" onclick="switchCat('sports')">⚽ Sports</button>
         <button class="tab-btn" data-cat="politics" onclick="switchCat('politics')">🌍 Politics</button>
+        <button class="tab-btn" data-cat="weather" onclick="switchCat('weather')">🌤️ Weather</button>
       </div>
     </div>
     <div class="markets-grid" id="featured-markets">
@@ -235,7 +235,7 @@
   setInterval(refreshStats, 30_000);
 
   // ── Category tabs ──────────────────────────────────────────────────────────
-  let activeCat = 'crypto';
+  let activeCat = 'sports';
   function switchCat(cat) {
     activeCat = cat;
     document.querySelectorAll('#cat-tabs .tab-btn').forEach(b => {
@@ -257,7 +257,7 @@
   }
 
   // ── Featured markets ──────────────────────────────────────────────────────
-  loadCategory('crypto');
+  loadCategory('sports');
 
   fetch('/api/markets?type=fast').then(r => r.json()).then(markets => {
     const open = markets.filter(m => (m.status?.kind ?? m.status) === 'Open').slice(0,4);
