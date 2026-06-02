@@ -525,14 +525,14 @@ app.get('/api/agent/markets', async (req, res) => {
       const nowTs   = Math.floor(Date.now() / 1000);
       const catQueries = {
         sports:   'sports nba nfl soccer football prediction markets polymarket',
-        politics: 'politics election president prediction markets polymarket',
-        weather:  'weather tornado hurricane climate temperature earthquake prediction polymarket',
+        politics: 'politics election president congress prediction markets polymarket',
+        ai:       'ai artificial intelligence gpt chatgpt openai prediction markets polymarket',
+        entertainment: 'entertainment movie oscar box office gaming celebrity prediction markets polymarket',
       };
       const catQuery = cat ? catQueries[cat] : null;
       let minVol = 1000;
       let horizon = 7;
-      if (cat === 'sports' || cat === 'politics') { minVol = 100; horizon = 30; }
-      if (cat === 'weather') { minVol = 0; horizon = 60; }
+      if (cat === 'sports' || cat === 'politics' || cat === 'ai' || cat === 'entertainment') { minVol = 100; horizon = 30; }
       const limit   = Math.min(Number(req.query.limit) || 10, 50);
       const results = await fetchFalconMarkets({
         closed: false, minVolume: minVol, limit: 100,
@@ -1321,14 +1321,14 @@ app.get('/api/markets', async (req, res) => {
       const catQueries = {
         sports:   'sports nba nfl soccer football prediction markets polymarket',
         politics: 'politics election president congress prediction markets polymarket',
-        weather:  'weather tornado hurricane climate temperature earthquake prediction polymarket',
+        ai:       'ai artificial intelligence gpt chatgpt openai prediction markets polymarket',
+        entertainment: 'entertainment movie oscar box office gaming celebrity prediction markets polymarket',
       };
       const catQuery = cat ? catQueries[cat] : null;
       // Wider filters for non-crypto categories
       let minVol = 1000;
       let horizon = 7;
-      if (cat === 'sports' || cat === 'politics') { minVol = 100; horizon = 30; }
-      if (cat === 'weather') { minVol = 0; horizon = 60; }
+      if (cat === 'sports' || cat === 'politics' || cat === 'ai' || cat === 'entertainment') { minVol = 100; horizon = 30; }
       const limit   = Math.min(Number(req.query.limit) || 20, 50);
       const results = await fetchFalconMarkets({
         closed, minVolume: minVol, limit: 100,
