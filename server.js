@@ -526,12 +526,13 @@ app.get('/api/agent/markets', async (req, res) => {
       const catQueries = {
         sports:   'sports nba nfl soccer football prediction markets polymarket',
         politics: 'politics election president prediction markets polymarket',
-        weather:  'weather hurricane tornado temperature climate prediction markets polymarket',
+        weather:  'weather tornado hurricane climate temperature earthquake prediction polymarket',
       };
       const catQuery = cat ? catQueries[cat] : null;
       let minVol = 1000;
       let horizon = 7;
-      if (cat === 'sports' || cat === 'politics' || cat === 'weather') { minVol = 100; horizon = 30; }
+      if (cat === 'sports' || cat === 'politics') { minVol = 100; horizon = 30; }
+      if (cat === 'weather') { minVol = 0; horizon = 60; }
       const limit   = Math.min(Number(req.query.limit) || 10, 50);
       const results = await fetchFalconMarkets({
         closed: false, minVolume: minVol, limit: 100,
@@ -1234,7 +1235,7 @@ app.get('/api/markets', async (req, res) => {
     try {
       // Fetch live prices from CoinGecko
       const cg = await fetch(
-        'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd',
+        'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,dogecoin,cardano,polkadot&vs_currencies=usd',
         { signal: AbortSignal.timeout(8_000) }
       );
       if (!cg.ok) throw new Error(`CoinGecko ${cg.status}`);
@@ -1242,6 +1243,9 @@ app.get('/api/markets', async (req, res) => {
       const btc = prices?.bitcoin?.usd;
       const eth = prices?.ethereum?.usd;
       const sol = prices?.solana?.usd;
+      const doge = prices?.dogecoin?.usd;
+      const ada = prices?.cardano?.usd;
+      const dot = prices?.polkadot?.usd;
 
       const fastMarkets = [
         {
@@ -1268,15 +1272,41 @@ app.get('/api/markets', async (req, res) => {
           symbol: 'SOL', currentPrice: sol || 0, endDate: new Date(Date.now() + 300_000).toISOString(),
           daysLeft: 0, closingLabel: '5 min',
         },
+        {
+          id: -104, question: 'Will Dogecoin be higher or lower in 5 minutes?',
+          outcome_a: 'Higher ↑', outcome_b: 'Lower ↓',
+          pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0,
+          status: 'Open', category: 'crypto', source: 'coingecko',
+          symbol: 'DOGE', currentPrice: doge || 0, endDate: new Date(Date.now() + 300_000).toISOString(),
+          daysLeft: 0, closingLabel: '5 min',
+        },
+        {
+          id: -105, question: 'Will Cardano be higher or lower in 5 minutes?',
+          outcome_a: 'Higher ↑', outcome_b: 'Lower ↓',
+          pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0,
+          status: 'Open', category: 'crypto', source: 'coingecko',
+          symbol: 'ADA', currentPrice: ada || 0, endDate: new Date(Date.now() + 300_000).toISOString(),
+          daysLeft: 0, closingLabel: '5 min',
+        },
+        {
+          id: -106, question: 'Will Polkadot be higher or lower in 5 minutes?',
+          outcome_a: 'Higher ↑', outcome_b: 'Lower ↓',
+          pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0,
+          status: 'Open', category: 'crypto', source: 'coingecko',
+          symbol: 'DOT', currentPrice: dot || 0, endDate: new Date(Date.now() + 300_000).toISOString(),
+          daysLeft: 0, closingLabel: '5 min',
+        },
       ];
       return res.json(fastMarkets);
     } catch (e) {
       console.warn('[markets] CoinGecko error:', e.message);
-      // Fallback: return static fast markets with placeholder prices
       return res.json([
         { id: -101, question: 'Will Bitcoin be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'BTC', currentPrice: null, closingLabel: '5 min' },
         { id: -102, question: 'Will Ethereum be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'ETH', currentPrice: null, closingLabel: '5 min' },
         { id: -103, question: 'Will Solana be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'SOL', currentPrice: null, closingLabel: '5 min' },
+        { id: -104, question: 'Will Dogecoin be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'DOGE', currentPrice: null, closingLabel: '5 min' },
+        { id: -105, question: 'Will Cardano be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'ADA', currentPrice: null, closingLabel: '5 min' },
+        { id: -106, question: 'Will Polkadot be higher or lower in 5 minutes?', outcome_a: 'Higher ↑', outcome_b: 'Lower ↓', pct_a: 50, pct_b: 50, vara_a: 0, vara_b: 0, status: 'Open', category: 'crypto', source: 'coingecko', symbol: 'DOT', currentPrice: null, closingLabel: '5 min' },
       ]);
     }
   }
@@ -1290,14 +1320,15 @@ app.get('/api/markets', async (req, res) => {
       // Use category-specific query for better results from Heisenberg
       const catQueries = {
         sports:   'sports nba nfl soccer football prediction markets polymarket',
-        politics: 'politics election president prediction markets polymarket',
-        weather:  'weather hurricane tornado temperature climate prediction markets polymarket',
+        politics: 'politics election president congress prediction markets polymarket',
+        weather:  'weather tornado hurricane climate temperature earthquake prediction polymarket',
       };
       const catQuery = cat ? catQueries[cat] : null;
       // Wider filters for non-crypto categories
       let minVol = 1000;
       let horizon = 7;
-      if (cat === 'sports' || cat === 'politics' || cat === 'weather') { minVol = 100; horizon = 30; }
+      if (cat === 'sports' || cat === 'politics') { minVol = 100; horizon = 30; }
+      if (cat === 'weather') { minVol = 0; horizon = 60; }
       const limit   = Math.min(Number(req.query.limit) || 20, 50);
       const results = await fetchFalconMarkets({
         closed, minVolume: minVol, limit: 100,
