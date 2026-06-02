@@ -2,6 +2,8 @@
 
 **Live Frontend:** https://hy4-predict-production.up.railway.app/markets.html
 
+**demo video** https://www.loom.com/share/037d7cf4059d4be8a02705a6d4786fa8
+
 **Program ID (v2 — FastMarket):** `0xd24f2886dcb29dec16fc53214b7c8e498b2e96ea55d31a1497571e1ae15f5271`
 
 **Program ID (v1):** `0x2aa206e02547b2c23751e112c0751acb463d80756c34477f12db89fa1fe877e6`
