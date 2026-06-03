@@ -162,10 +162,19 @@ function callTx(account, pid, method, args, value) {
 
 let _gearApi = null;
 let funderAddress = null;
+const RPC_ENDPOINTS = (process.env.RPC_URL || 'wss://rpc.vara.network,wss://ws.vara-network.io').split(',');
 async function getGearApi() {
   if (_gearApi && _gearApi.isConnected) return _gearApi;
-  _gearApi = await GearApi.create({ providerAddress: 'wss://rpc.vara.network' });
-  return _gearApi;
+  for (const url of RPC_ENDPOINTS) {
+    try {
+      _gearApi = await GearApi.create({ providerAddress: url.trim() });
+      console.log(`[gear] connected to ${url.trim()}`);
+      return _gearApi;
+    } catch (e) {
+      console.warn(`[gear] ${url.trim()} failed: ${e.message}`);
+    }
+  }
+  throw new Error('All RPC endpoints unreachable');
 }
 async function checkFunderBalance() {
   try {
@@ -510,7 +519,7 @@ app.get('/api/health', (_, res) => {
     faucet_amount:    `${FAUCET_VARA} VARA`,
     program_v1:       PID_V1,
     program_v2:       PID_V2,
-    rpc:              'wss://rpc.vara.network',
+    rpc:              RPC_ENDPOINTS.join(', '),
     docs:             '/agent-docs',
   });
 });
